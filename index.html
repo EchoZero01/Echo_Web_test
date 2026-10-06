@@ -1143,7 +1143,8 @@ async function buildShareFiles(payload,answer,question){
   const auth=await crypto.subtle.encrypt({name:'AES-GCM',iv:ivAuth},key,new TextEncoder().encode('lingyin-ok'));
   const ivData=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:ivData},key,new TextEncoder().encode(JSON.stringify(payload)));
-  const lock={format:'lingyin-lock',version:1,question:question||'',salt:bufToB64(salt),iv:bufToB64(ivAuth),auth:bufToB64(auth)};
+  const dataRef=String(Date.now());
+  const lock={format:'lingyin-lock',version:1,question:question||'',salt:bufToB64(salt),iv:bufToB64(ivAuth),auth:bufToB64(auth),dataRef};
   const dataObj={format:'lingyin-data',version:1,iv:bufToB64(ivData),data:bufToB64(ct)};
   const dbody=JSON.stringify(dataObj);
   const dlen=new TextEncoder().encode(dbody).length;
@@ -1279,7 +1280,8 @@ function renderCloudLoad(){
   $('amFetch').addEventListener('click',async()=>{
     actionsBox.innerHTML='<div class="am-progress">正在获取提问…</div>';
     try{
-      const r=await fetch(SHARES[selKey].lock,{cache:'no-store'});
+      const lockUrl=SHARES[selKey].lock;
+      const r=await fetch(lockUrl+(lockUrl.indexOf('?')>=0?'&':'?')+'t='+Date.now(),{cache:'no-store'});
       if(!r.ok)throw new Error('锁文件加载失败('+r.status+')');
       const lock=JSON.parse(await r.text());
       if(!lock||lock.format!=='lingyin-lock'||!lock.auth)throw new Error('锁文件格式不正确');
@@ -1319,7 +1321,8 @@ function renderCloudVerify(lock,dataUrl){
     let key;
     try{ key=await openLock(lock,ansInput.value); }
     catch(e){ $('amError').textContent='答案错误，请重试（答案正确后才会开始下载）';ansInput.select();return; }
-    await downloadAndExtract(key,dataUrl);
+    const realDataUrl=dataUrl+(dataUrl.indexOf('?')>=0?'&':'?')+'v='+(lock.dataRef||'1');
+    await downloadAndExtract(key,realDataUrl);
   });
   ansInput.addEventListener('keydown',e=>{if(e.key==='Enter')$('amVerify').click();});
   $('amBack').addEventListener('click',renderCloudLoad);
