@@ -1144,8 +1144,11 @@ async function buildShareFiles(payload,answer,question){
   const ivData=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:ivData},key,new TextEncoder().encode(JSON.stringify(payload)));
   const lock={format:'lingyin-lock',version:1,question:question||'',salt:bufToB64(salt),iv:bufToB64(ivAuth),auth:bufToB64(auth)};
-  const data={format:'lingyin-data',version:1,iv:bufToB64(ivData),data:bufToB64(ct)};
-  return {lock,data};
+  const dataObj={format:'lingyin-data',version:1,iv:bufToB64(ivData),data:bufToB64(ct)};
+  const dbody=JSON.stringify(dataObj);
+  const dlen=new TextEncoder().encode(dbody).length;
+  const dataText='LINGYINDATA00001'+String(dlen).padStart(16,'0')+dbody;
+  return {lock,dataText};
 }
 async function openLock(lock,answer){
   const key=await shareKey(answer,b64ToBuf(lock.salt));
@@ -1237,7 +1240,7 @@ function renderShareCreate(){
       const files=await buildShareFiles(payload,a,q);
       const b=fileName.replace(/\.json$/,'');
       downloadBlob(b+'.lock.json',new Blob([JSON.stringify(files.lock)],{type:'application/json'}));
-      downloadBlob(b+'.json',new Blob([JSON.stringify(files.data)],{type:'application/json'}));
+      downloadBlob(b+'.json',new Blob([files.dataText],{type:'application/json'}));
       closeAccountModal();
       toast('已下载 2 个文件（'+b+'.lock.json 与 '+b+'.json），都放到 GitHub 的 data/');
     }catch(e){closeAccountModal();toast('生成失败：'+e.message,'warn');}
@@ -1329,36 +1332,39 @@ async function downloadAndExtract(key,dataUrl){
   const bar=act.querySelector('.dl-bar>span');
   const dlNow=act.querySelector('#dlNow');
   const dlPct=act.querySelector('#dlPct');
-  const t0=Date.now();
+  const t0=Date.now();const HLEN=32;
   try{
     const r=await fetch(dataUrl,{cache:'no-store'});
     if(!r.ok)throw new Error('数据文件加载失败('+r.status+')');
-    const totalLen=+r.headers.get('Content-Length')||0;
-    const enc=(r.headers.get('Content-Encoding')||'').toLowerCase();
-    const lenOK=totalLen>0&&!enc;
     const reader=r.body.getReader();
-    let received=0;const chunks=[];
+    let received=0;const chunks=[];let totalAll=0,gotHead=false;
     while(true){
       const rd=await reader.read();
       if(rd.done)break;
       chunks.push(rd.value);received+=rd.value.length;
+      if(!gotHead&&received>=HLEN){
+        gotHead=true;
+        const pref=await new Blob(chunks).slice(0,HLEN).text();
+        const m=/^LINGYINDATA00001(\d{16})/.exec(pref);
+        if(m)totalAll=HLEN+parseInt(m[1],10);
+      }
       const mb=received/1048576;
       const sp=mb/((Date.now()-t0)/1000||1);
-      if(lenOK){
-        const pct=Math.min(100,received/totalLen*100);
+      if(totalAll>0){
+        const pct=Math.min(100,received/totalAll*100);
         bar.classList.remove('indeterminate');bar.style.width=pct+'%';
-        dlNow.textContent=mb.toFixed(2)+' / '+(totalLen/1048576).toFixed(2)+' MB';
+        dlNow.textContent=mb.toFixed(2)+' / '+(totalAll/1048576).toFixed(2)+' MB';
         dlPct.textContent=Math.round(pct)+'% · '+sp.toFixed(1)+' MB/s';
       }else{
         bar.classList.add('indeterminate');bar.style.width='';
         dlNow.textContent=mb.toFixed(2)+' MB';
-        dlPct.textContent='下载中 · '+sp.toFixed(1)+' MB/s';
+        dlPct.textContent='正在读取文件信息… · '+sp.toFixed(1)+' MB/s';
       }
     }
     bar.classList.remove('indeterminate');bar.style.width='100%';
-    dlNow.textContent=(received/1048576).toFixed(2)+' MB';
     dlPct.textContent='下载完成，正在解密解析…';
-    const dataFile=JSON.parse(await new Blob(chunks).text());
+    const full=await new Blob(chunks).text();
+    const dataFile=JSON.parse(full.slice(HLEN));
     if(!dataFile||dataFile.format!=='lingyin-data'||!dataFile.data)throw new Error('数据文件格式不正确');
     const payload=await openData(key,dataFile);
     act.innerHTML='<div class="am-progress">正在写入本地，媒体较多时可能偏长，请勿关闭页面…<br><span id="amProg"></span></div>';
