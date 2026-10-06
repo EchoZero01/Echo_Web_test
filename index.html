@@ -596,6 +596,9 @@ body::before{
 .cloud-cta{margin-top:18px;padding:11px 18px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-wash);color:var(--accent);font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
 .cloud-cta svg{width:17px;height:17px}
 .am-progress{font-size:13px;color:var(--ink-2);line-height:1.7;padding:6px 0}
+.dl-bar{height:7px;background:var(--paper-deep);border-radius:4px;overflow:hidden;margin:9px 0 2px}
+.dl-bar>span{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.dl-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-3);margin-top:2px}
 
 /* ============ 图片灯箱 ============ */
 .lightbox{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:rgba(9,10,12,.93)}
@@ -982,9 +985,10 @@ async function renderAccountList(){
   const b2=mk('生成分享包');b2.addEventListener('click',renderShareCreate);
   const b3=mk('加载分享');b3.addEventListener('click',renderCloudLoad);
   const b4=mk('修改密码');b4.addEventListener('click',renderChangePassword);
+  const b5=mk('修改名称');b5.addEventListener('click',renderRenameAccount);
   row.appendChild(b1);
   if(canShare)row.appendChild(b2);
-  row.appendChild(b3);row.appendChild(b4);
+  row.appendChild(b3);row.appendChild(b4);row.appendChild(b5);
   more.appendChild(row);body.appendChild(more);
 }
 function chooseAccount(a){
@@ -1116,11 +1120,13 @@ async function clearCurrentAccount(){
 function bufToB64(buf){let s='';const a=new Uint8Array(buf);for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s);}
 function b64ToBuf(str){const s=atob(str);const a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
 function blobToDataURL(blob){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});}
-function dataURLToBlob(durl){
-  const parts=durl.split(',');const mt=/data:(.*?);/.exec(parts[0]);
-  const s=atob(parts[1]);const a=new Uint8Array(s.length);
-  for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);
-  return new Blob([a],{type:mt?mt[1]:''});
+async function dataURLToBlob(durl){
+  try{return await (await fetch(durl)).blob();}catch(e){
+    const parts=durl.split(',');const mt=/data:(.*?);/.exec(parts[0]);
+    const s=atob(parts[1]);const a=new Uint8Array(s.length);
+    for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);
+    return new Blob([a],{type:mt?mt[1]:''});
+  }
 }
 async function shareKey(password,salt){
   const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveKey']);
@@ -1154,9 +1160,12 @@ async function buildSharePayload(){
   return {format:'lingyin-share-data',version:1,accountName:acc?acc.name:'',exportedAt:new Date().toISOString(),notes:outNotes};
 }
 async function applySharePayload(p,onProgress){
-  let acc=accounts.find(a=>a.cloud&&a.cloudName===p.accountName);
+  const sourceName=p.accountName||'';
+  let acc=accounts.find(a=>a.cloud&&a.cloudName===sourceName);
   if(!acc){
-    acc={id:uid(),name:p.accountName||'云端分享',salt:'',passwordHash:'',createdAt:new Date().toISOString(),cloud:true,cloudName:p.accountName||''};
+    const baseName='云端分享';let name=baseName,n=2;
+    while(accounts.some(a=>a.name===name)){name=baseName+'·'+n;n++;}
+    acc={id:uid(),name,salt:'',passwordHash:'',createdAt:new Date().toISOString(),cloud:true,cloudName:sourceName};
     await dbPut('accounts',acc);accounts.push(acc);
   }
   const list=p.notes||[];
@@ -1166,11 +1175,11 @@ async function applySharePayload(p,onProgress){
     const media=[];
     (n.media||[]).forEach(m=>{
       media.push({id:m.id,kind:m.kind,name:m.name||'',type:m.type||'',size:m.size||0});
-      if(m.dataUrl)blobJobs.push(async()=>{try{await dbPut('blobs',{id:m.id,blob:dataURLToBlob(m.dataUrl)});}catch(e){}});
+      if(m.dataUrl)blobJobs.push(async()=>{try{const b=await dataURLToBlob(m.dataUrl);await dbPut('blobs',{id:m.id,blob:b});}catch(e){}});
     });
     noteRecs.push({id:n.id,ownerId:acc.id,title:n.title||'',body:n.body||'',tags:Array.isArray(n.tags)?n.tags:[],link:n.link||null,media,createdAt:n.createdAt,updatedAt:n.updatedAt});
   });
-  const BATCH=16,total=blobJobs.length;let done=0;
+  const BATCH=24,total=blobJobs.length;let done=0;
   for(let i=0;i<total;i+=BATCH){
     await Promise.all(blobJobs.slice(i,i+BATCH).map(j=>j()));
     done+=Math.min(BATCH,total-i);
@@ -1232,7 +1241,7 @@ function renderCloudLoad(){
     +'<button type="button" class="sel-opt selected" data-file="data/echo.json"><span class="so-name">Echo</span><span class="so-path">data/echo.json</span></button>'
     +'<button type="button" class="sel-opt" data-file="data/zero.json"><span class="so-name">澪音</span><span class="so-path">data/zero.json</span></button>'
     +'</div>'
-    +'<div class="am-hint">选择要读取的分享包，获取后需回答提问方可提取。</div>'
+    +'<div class="am-hint">含图片视频时文件较大，加载可能偏长（请耐心等待、勿重复点击）；获取后需回答提问方可提取。</div>'
     +'<div class="am-error" id="amError"></div>'
     +'<div class="am-actions">'
     +'<button class="btn-ghost" id="amBack">返回</button>'
@@ -1245,11 +1254,30 @@ function renderCloudLoad(){
   }));
   const actionsBox=body.querySelector('.am-actions');
   $('amFetch').addEventListener('click',async()=>{
-    actionsBox.innerHTML='<div class="am-progress">正在拉取分享包，请稍候…</div>';
+    actionsBox.innerHTML='<div class="am-progress">正在下载分享包…</div>'
+      +'<div class="dl-bar"><span></span></div><div class="dl-meta"><span id="dlNow">0 MB</span><span id="dlPct">准备中…</span></div>';
+    const bar=actionsBox.querySelector('.dl-bar>span');
+    const dlNow=actionsBox.querySelector('#dlNow');
+    const dlPct=actionsBox.querySelector('#dlPct');
+    const t0=Date.now();
     try{
       const r=await fetch(filePath,{cache:'no-store'});
       if(!r.ok)throw new Error('文件加载失败('+r.status+')');
-      const pkg=await r.json();
+      const totalLen=+r.headers.get('Content-Length')||0;
+      const reader=r.body.getReader();
+      let received=0;const chunks=[];
+      while(true){
+        const rd=await reader.read();
+        if(rd.done)break;
+        chunks.push(rd.value);received+=rd.value.length;
+        const mb=received/1048576;
+        bar.style.width=totalLen?((received/totalLen*100)+'%'):(Math.min(received/2097152*100,95)+'%');
+        dlNow.textContent=mb.toFixed(2)+(totalLen?(' / '+(totalLen/1048576).toFixed(2)):'')+' MB';
+        const sp=mb/((Date.now()-t0)/1000||1);
+        dlPct.textContent=(totalLen?(Math.round(received/totalLen*100)+'%'):'下载中')+' · '+sp.toFixed(1)+' MB/s';
+      }
+      dlPct.textContent='下载完成，正在解析…';
+      const pkg=JSON.parse(await new Blob(chunks).text());
       if(!pkg||pkg.format!=='lingyin-share'||!pkg.data)throw new Error('不是有效的分享包');
       renderCloudVerify(pkg);
     }catch(e){
@@ -1288,8 +1316,9 @@ function renderCloudVerify(pkg){
       const payload=await decryptShare(pkg,ansInput.value);
       const n=(payload.notes||[]).length;
       const act=$('amAct');
-      act.innerHTML='<div class="am-progress" style="color:var(--accent);text-align:center">答案正确 · 账户「'+(payload.accountName||'云端分享')+'」共 '+n+' 则想法</div>'
-        +'<button class="btn-primary" id="amExtract" style="margin-top:10px">提取到本地并查看</button>';
+      act.innerHTML='<div class="am-progress" style="color:var(--accent);text-align:center">答案正确 · 共 '+n+' 则想法（来源：'+(payload.accountName||'云端分享')+'）</div>'
+        +'<div class="am-hint" style="text-align:center">将存入独立的「云端分享」账户，不改动你当前账户；媒体较多时提取可能偏长。</div>'
+        +'<button class="btn-primary" id="amExtract" style="margin-top:8px">提取到本地并查看</button>';
       $('amExtract').addEventListener('click',()=>extractShare(payload));
     }catch(e){
       $('amError').textContent='答案错误或数据包已损坏，请重试';
@@ -1301,13 +1330,42 @@ function renderCloudVerify(pkg){
 }
 async function extractShare(payload){
   const act=$('amAct');
-  act.innerHTML='<div class="am-progress">正在提取图片视频并写入本地，请稍候…<br><span id="amProg"></span></div>';
+  act.innerHTML='<div class="am-progress">正在写入本地，媒体较多时可能偏长，请勿关闭页面…<br><span id="amProg"></span></div>';
   try{
     await applySharePayload(payload,(d,t)=>{const el=$('amProg');if(el)el.textContent=t?('媒体文件 '+d+' / '+t):'';});
     closeAccountModal();toast('已加载分享内容');
   }catch(e){
     closeAccountModal();toast('提取失败：'+(e.message||''),'warn');
   }
+}
+// 修改当前账户名
+function renderRenameAccount(){
+  const acc=getAccount(currentAccountId);
+  if(!acc){toast('请先选择账户','warn');return;}
+  $('amTitle').textContent='修改账户名';
+  const body=$('amBody');
+  body.innerHTML=
+    '<div class="am-form">'
+    +'<label>新账户名</label>'
+    +'<input type="text" id="amNewName" maxlength="24" autocomplete="off">'
+    +'<div class="am-hint">改名后该账户内容不变；改为 EchoZero澪音 可获得生成分享包权限。</div>'
+    +'<div class="am-error" id="amError"></div>'
+    +'<div class="am-actions">'
+    +'<button class="btn-ghost" id="amBack">返回</button>'
+    +'<button class="btn-primary" id="amSaveName">保存</button>'
+    +'</div></div>';
+  const inp=$('amNewName');inp.value=acc.name;inp.focus();inp.select();
+  const save=async()=>{
+    const nm=inp.value.trim();
+    if(!nm){$('amError').textContent='账户名不能为空';return;}
+    if(nm!==acc.name&&accounts.some(a=>a.name===nm)){$('amError').textContent='已存在同名账户，请换一个';return;}
+    if(nm===acc.name){closeAccountModal();return;}
+    acc.name=nm;await dbPut('accounts',acc);
+    closeAccountModal();render();toast('账户名已改为「'+nm+'」');
+  };
+  $('amSaveName').addEventListener('click',save);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
+  $('amBack').addEventListener('click',renderAccountList);
 }
 // 修改当前账户密码（新密码留空＝移除密码）
 function renderChangePassword(){
