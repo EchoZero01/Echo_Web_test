@@ -1176,13 +1176,13 @@ async function buildSharePayload(){
   }
   return {format:'lingyin-share-data',version:1,accountName:acc?acc.name:'',exportedAt:new Date().toISOString(),notes:outNotes};
 }
-async function applySharePayload(p,onProgress){
-  const sourceName=p.accountName||'';
-  let acc=accounts.find(a=>a.cloud&&a.cloudName===sourceName);
+async function applySharePayload(p,onProgress,targetName){
+  const baseName=targetName||'云端分享';
+  let acc=accounts.find(a=>a.cloud&&a.cloudName===baseName);
   if(!acc){
-    const baseName='云端分享';let name=baseName,n=2;
+    let name=baseName,n=2;
     while(accounts.some(a=>a.name===name)){name=baseName+'·'+n;n++;}
-    acc={id:uid(),name,salt:'',passwordHash:'',createdAt:new Date().toISOString(),cloud:true,cloudName:sourceName};
+    acc={id:uid(),name,salt:'',passwordHash:'',createdAt:new Date().toISOString(),cloud:true,cloudName:baseName};
     await dbPut('accounts',acc);accounts.push(acc);
   }
   const list=p.notes||[];
@@ -1255,8 +1255,8 @@ function renderCloudLoad(){
   const body=$('amBody');
   const CDB='https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/';
   const SHARES={
-    echo:{lock:CDB+'echo.lock.json',data:CDB+'echo.json'},
-    zero:{lock:CDB+'zero.lock.json',data:CDB+'zero.json'}
+    echo:{lock:CDB+'echo.lock.json',data:CDB+'echo.json',name:'Echo'},
+    zero:{lock:CDB+'zero.lock.json',data:CDB+'zero.json',name:'澪音'}
   };
   body.innerHTML=
     '<div class="am-form">'
@@ -1285,7 +1285,7 @@ function renderCloudLoad(){
       if(!r.ok)throw new Error('锁文件加载失败('+r.status+')');
       const lock=JSON.parse(await r.text());
       if(!lock||lock.format!=='lingyin-lock'||!lock.auth)throw new Error('锁文件格式不正确');
-      renderCloudVerify(lock,SHARES[selKey].data);
+      renderCloudVerify(lock,SHARES[selKey].data,SHARES[selKey].name);
     }catch(e){
       actionsBox.innerHTML='';
       const back=document.createElement('button');back.className='btn-ghost';back.textContent='返回';
@@ -1299,7 +1299,7 @@ function renderCloudLoad(){
   $('amBack').addEventListener('click',renderAccountList);
 }
 // 第 2 步：先验证答案，正确后才下载大数据；答案错误不下载、不写入
-function renderCloudVerify(lock,dataUrl){
+function renderCloudVerify(lock,dataUrl,targetName){
   $('amTitle').textContent='从云端加载 · 第 2 步';
   const body=$('amBody');
   const q=lock.question||'请输入访问答案';
@@ -1322,13 +1322,13 @@ function renderCloudVerify(lock,dataUrl){
     try{ key=await openLock(lock,ansInput.value); }
     catch(e){ $('amError').textContent='答案错误，请重试（答案正确后才会开始下载）';ansInput.select();return; }
     const realDataUrl=dataUrl+(dataUrl.indexOf('?')>=0?'&':'?')+'v='+(lock.dataRef||'1');
-    await downloadAndExtract(key,realDataUrl);
+    await downloadAndExtract(key,realDataUrl,targetName);
   });
   ansInput.addEventListener('keydown',e=>{if(e.key==='Enter')$('amVerify').click();});
   $('amBack').addEventListener('click',renderCloudLoad);
 }
 // 答案正确后：流式下载大数据 → 解密 → 写入独立云端账户
-async function downloadAndExtract(key,dataUrl){
+async function downloadAndExtract(key,dataUrl,targetName){
   const act=$('amAct');
   act.innerHTML='<div class="am-progress">答案正确，正在下载数据文件…</div>'
     +'<div class="dl-bar"><span></span></div><div class="dl-meta"><span id="dlNow">0 MB</span><span id="dlPct">准备中…</span></div>';
@@ -1371,7 +1371,7 @@ async function downloadAndExtract(key,dataUrl){
     if(!dataFile||dataFile.format!=='lingyin-data'||!dataFile.data)throw new Error('数据文件格式不正确');
     const payload=await openData(key,dataFile);
     act.innerHTML='<div class="am-progress">正在写入本地，媒体较多时可能偏长，请勿关闭页面…<br><span id="amProg"></span></div>';
-    await applySharePayload(payload,(d,t)=>{const el=$('amProg');if(el)el.textContent=t?('媒体文件 '+d+' / '+t):'';});
+    await applySharePayload(payload,(d,t)=>{const el=$('amProg');if(el)el.textContent=t?('媒体文件 '+d+' / '+t):'';},targetName);
     closeAccountModal();toast('已加载分享内容');
   }catch(e){
     act.innerHTML='';
