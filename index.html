@@ -318,7 +318,8 @@ body::before{
   width:32px;height:32px;border-radius:8px;background:var(--accent-wash);
   display:grid;place-items:center;flex:none;
 }
-.link-card .link-ico svg{width:16px;height:16px;color:var(--accent)}
+.link-card .link-ico img.lf{width:17px;height:17px;border-radius:4px;object-fit:contain}
+.link-card .link-ico svg.fb{display:none;width:16px;height:16px;color:var(--accent)}
 .link-card .link-meta{min-width:0;flex:1}
 .link-card .link-title{font-size:13px;font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .link-card .link-url{font-size:11.5px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1839,6 +1840,20 @@ function rerenderCard(noteId){
   if(!old)return;
   old.replaceWith(buildCard(note));
 }
+function faviconOrigin(url){try{return new URL(url).origin;}catch(e){return '';}}
+function bindFav(img,pageUrl){
+  var origin=faviconOrigin(pageUrl),domain='';
+  try{domain=new URL(pageUrl).hostname;}catch(e){}
+  var fb=img.nextElementSibling,stage=0;
+  img.referrerPolicy='no-referrer';
+  img.addEventListener('error',function(){
+    stage++;
+    if(stage===1&&domain){img.src='https://www.google.com/s2/favicons?domain='+domain+'&sz=64';}
+    else{img.style.display='none';if(fb)fb.style.display='block';}
+  });
+  if(origin)img.src=origin+'/favicon.ico';
+  else{img.style.display='none';if(fb)fb.style.display='block';}
+}
 function buildCard(note){
   const card=document.createElement('article');
   card.className='card';card.dataset.note=note.id;
@@ -2007,9 +2022,10 @@ function buildCard(note){
       a.className='link-card';
       a.href=note.link.url;
       a.target='_blank';a.rel='noopener noreferrer';
-      a.innerHTML='<span class="link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span class="link-meta"><span class="link-title"></span><span class="link-url"></span></span><svg class="link-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+      a.innerHTML='<span class="link-ico"><img class="lf" alt=""><svg class="fb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span class="link-meta"><span class="link-title"></span><span class="link-url"></span></span><svg class="link-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
       a.querySelector('.link-title').textContent=note.link.title||note.link.url;
       a.querySelector('.link-url').textContent=note.link.url;
+      bindFav(a.querySelector('.link-ico img'),note.link.url);
     }
     if(a)card.appendChild(a);
   }
