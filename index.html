@@ -1238,8 +1238,8 @@ function renderCloudLoad(){
     '<div class="am-form">'
     +'<label>选择</label>'
     +'<div class="sel-grid" id="amSel">'
-    +'<button type="button" class="sel-opt selected" data-file="data/echo.json"><span class="so-name">Echo</span><span class="so-path">data/echo.json</span></button>'
-    +'<button type="button" class="sel-opt" data-file="data/zero.json"><span class="so-name">澪音</span><span class="so-path">data/zero.json</span></button>'
+    +'<button type="button" class="sel-opt selected" data-file="https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/echo.json"><span class="so-name">Echo</span><span class="so-path">data/echo.json</span></button>'
+    +'<button type="button" class="sel-opt" data-file="https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/zero.json"><span class="so-name">澪音</span><span class="so-path">data/zero.json</span></button>'
     +'</div>'
     +'<div class="am-hint">含图片视频时文件较大，加载可能偏长（请耐心等待、勿重复点击）；获取后需回答提问方可提取。</div>'
     +'<div class="am-error" id="amError"></div>'
@@ -1247,7 +1247,7 @@ function renderCloudLoad(){
     +'<button class="btn-ghost" id="amBack">返回</button>'
     +'<button class="btn-primary" id="amFetch">获取分享包</button>'
     +'</div></div>';
-  let filePath='data/echo.json';
+  let filePath='https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/echo.json';
   body.querySelectorAll('.sel-opt').forEach(b=>b.addEventListener('click',()=>{
     body.querySelectorAll('.sel-opt').forEach(x=>x.classList.remove('selected'));
     b.classList.add('selected');filePath=b.dataset.file;$('amError').textContent='';
@@ -1348,7 +1348,7 @@ function renderRenameAccount(){
     '<div class="am-form">'
     +'<label>新账户名</label>'
     +'<input type="text" id="amNewName" maxlength="24" autocomplete="off">'
-    +'<div class="am-hint">改名后该账户内容不变；改为 EchoZero澪音 可获得生成分享包权限。</div>'
+    +'<div class="am-hint">改名后该账户内容不变。</div>'
     +'<div class="am-error" id="amError"></div>'
     +'<div class="am-actions">'
     +'<button class="btn-ghost" id="amBack">返回</button>'
