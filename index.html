@@ -598,7 +598,11 @@ body::before{
 .am-progress{font-size:13px;color:var(--ink-2);line-height:1.7;padding:6px 0}
 .dl-bar{height:7px;background:var(--paper-deep);border-radius:4px;overflow:hidden;margin:9px 0 2px}
 .dl-bar>span{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.dl-bar.indeterminate>span{width:38%;transition:none;animation:dlslide 1.15s ease-in-out infinite}
+@keyframes dlslide{0%{transform:translateX(-110%)}100%{transform:translateX(263%)}}
 .dl-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.am-okwrap{display:flex;flex-direction:column;gap:10px;align-items:stretch;width:100%}
+.am-okwrap .btn-primary{width:100%}
 
 /* ============ 图片灯箱 ============ */
 .lightbox{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:rgba(9,10,12,.93)}
@@ -1132,18 +1136,27 @@ async function shareKey(password,salt){
   const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveKey']);
   return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:120000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
 }
-async function encryptShare(payload,answer,question){
+async function buildShareFiles(payload,answer,question){
   const salt=crypto.getRandomValues(new Uint8Array(16));
-  const iv=crypto.getRandomValues(new Uint8Array(12));
   const key=await shareKey(answer,salt);
-  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(payload)));
-  return {format:'lingyin-share',version:2,question:question||'',salt:bufToB64(salt),iv:bufToB64(iv),data:bufToB64(ct),exportedAt:new Date().toISOString()};
+  const ivAuth=crypto.getRandomValues(new Uint8Array(12));
+  const auth=await crypto.subtle.encrypt({name:'AES-GCM',iv:ivAuth},key,new TextEncoder().encode('lingyin-ok'));
+  const ivData=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:ivData},key,new TextEncoder().encode(JSON.stringify(payload)));
+  const lock={format:'lingyin-lock',version:1,question:question||'',salt:bufToB64(salt),iv:bufToB64(ivAuth),auth:bufToB64(auth)};
+  const data={format:'lingyin-data',version:1,iv:bufToB64(ivData),data:bufToB64(ct)};
+  return {lock,data};
 }
-async function decryptShare(pkg,answer){
-  const key=await shareKey(answer,b64ToBuf(pkg.salt));
+async function openLock(lock,answer){
+  const key=await shareKey(answer,b64ToBuf(lock.salt));
+  try{ await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(lock.iv)},key,b64ToBuf(lock.auth)); }
+  catch(e){ throw new Error('答案错误'); }
+  return key;
+}
+async function openData(key,dataFile){
   let pt;
-  try{pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(pkg.iv)},key,b64ToBuf(pkg.data));}
-  catch(e){throw new Error('答案错误或数据包已损坏');}
+  try{ pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(dataFile.iv)},key,b64ToBuf(dataFile.data)); }
+  catch(e){ throw new Error('数据解密失败'); }
   return JSON.parse(new TextDecoder().decode(pt));
 }
 async function buildSharePayload(){
@@ -1221,10 +1234,12 @@ function renderShareCreate(){
     actionsBox.innerHTML='<div class="am-progress">正在加密并内嵌图片视频，请稍候…</div>';
     try{
       const payload=await buildSharePayload();
-      const pkg=await encryptShare(payload,a,q);
-      downloadBlob(fileName,new Blob([JSON.stringify(pkg)],{type:'application/json'}));
+      const files=await buildShareFiles(payload,a,q);
+      const b=fileName.replace(/\.json$/,'');
+      downloadBlob(b+'.lock.json',new Blob([JSON.stringify(files.lock)],{type:'application/json'}));
+      downloadBlob(b+'.json',new Blob([JSON.stringify(files.data)],{type:'application/json'}));
       closeAccountModal();
-      toast('分享包已下载：放到 GitHub 的 data/'+fileName);
+      toast('已下载 2 个文件（'+b+'.lock.json 与 '+b+'.json），都放到 GitHub 的 data/');
     }catch(e){closeAccountModal();toast('生成失败：'+e.message,'warn');}
   };
   $('amConfirm').addEventListener('click',run);
@@ -1234,69 +1249,55 @@ function renderShareCreate(){
 function renderCloudLoad(){
   $('amTitle').textContent='从云端加载 · 第 1 步';
   const body=$('amBody');
+  const CDB='https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/';
+  const SHARES={
+    echo:{lock:CDB+'echo.lock.json',data:CDB+'echo.json'},
+    zero:{lock:CDB+'zero.lock.json',data:CDB+'zero.json'}
+  };
   body.innerHTML=
     '<div class="am-form">'
     +'<label>选择</label>'
     +'<div class="sel-grid" id="amSel">'
-    +'<button type="button" class="sel-opt selected" data-file="https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/echo.json"><span class="so-name">Echo</span><span class="so-path">data/echo.json</span></button>'
-    +'<button type="button" class="sel-opt" data-file="https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/zero.json"><span class="so-name">澪音</span><span class="so-path">data/zero.json</span></button>'
+    +'<button type="button" class="sel-opt selected" data-key="echo"><span class="so-name">Echo</span><span class="so-path">echo.lock.json</span></button>'
+    +'<button type="button" class="sel-opt" data-key="zero"><span class="so-name">澪音</span><span class="so-path">zero.lock.json</span></button>'
     +'</div>'
-    +'<div class="am-hint">含图片视频时文件较大，加载可能偏长（请耐心等待、勿重复点击）；获取后需回答提问方可提取。</div>'
+    +'<div class="am-hint">先获取提问并验证答案，答案正确后才会下载较大的数据文件。</div>'
     +'<div class="am-error" id="amError"></div>'
     +'<div class="am-actions">'
     +'<button class="btn-ghost" id="amBack">返回</button>'
-    +'<button class="btn-primary" id="amFetch">获取分享包</button>'
+    +'<button class="btn-primary" id="amFetch">获取提问</button>'
     +'</div></div>';
-  let filePath='https://cdn.jsdelivr.net/gh/EchoZero01/Echo_Web_test@main/data/echo.json';
+  let selKey='echo';
   body.querySelectorAll('.sel-opt').forEach(b=>b.addEventListener('click',()=>{
     body.querySelectorAll('.sel-opt').forEach(x=>x.classList.remove('selected'));
-    b.classList.add('selected');filePath=b.dataset.file;$('amError').textContent='';
+    b.classList.add('selected');selKey=b.dataset.key;$('amError').textContent='';
   }));
   const actionsBox=body.querySelector('.am-actions');
   $('amFetch').addEventListener('click',async()=>{
-    actionsBox.innerHTML='<div class="am-progress">正在下载分享包…</div>'
-      +'<div class="dl-bar"><span></span></div><div class="dl-meta"><span id="dlNow">0 MB</span><span id="dlPct">准备中…</span></div>';
-    const bar=actionsBox.querySelector('.dl-bar>span');
-    const dlNow=actionsBox.querySelector('#dlNow');
-    const dlPct=actionsBox.querySelector('#dlPct');
-    const t0=Date.now();
+    actionsBox.innerHTML='<div class="am-progress">正在获取提问…</div>';
     try{
-      const r=await fetch(filePath,{cache:'no-store'});
-      if(!r.ok)throw new Error('文件加载失败('+r.status+')');
-      const totalLen=+r.headers.get('Content-Length')||0;
-      const reader=r.body.getReader();
-      let received=0;const chunks=[];
-      while(true){
-        const rd=await reader.read();
-        if(rd.done)break;
-        chunks.push(rd.value);received+=rd.value.length;
-        const mb=received/1048576;
-        bar.style.width=totalLen?((received/totalLen*100)+'%'):(Math.min(received/2097152*100,95)+'%');
-        dlNow.textContent=mb.toFixed(2)+(totalLen?(' / '+(totalLen/1048576).toFixed(2)):'')+' MB';
-        const sp=mb/((Date.now()-t0)/1000||1);
-        dlPct.textContent=(totalLen?(Math.round(received/totalLen*100)+'%'):'下载中')+' · '+sp.toFixed(1)+' MB/s';
-      }
-      dlPct.textContent='下载完成，正在解析…';
-      const pkg=JSON.parse(await new Blob(chunks).text());
-      if(!pkg||pkg.format!=='lingyin-share'||!pkg.data)throw new Error('不是有效的分享包');
-      renderCloudVerify(pkg);
+      const r=await fetch(SHARES[selKey].lock,{cache:'no-store'});
+      if(!r.ok)throw new Error('锁文件加载失败('+r.status+')');
+      const lock=JSON.parse(await r.text());
+      if(!lock||lock.format!=='lingyin-lock'||!lock.auth)throw new Error('锁文件格式不正确');
+      renderCloudVerify(lock,SHARES[selKey].data);
     }catch(e){
       actionsBox.innerHTML='';
       const back=document.createElement('button');back.className='btn-ghost';back.textContent='返回';
       const retry=document.createElement('button');retry.className='btn-primary';retry.textContent='重试';
       actionsBox.appendChild(back);actionsBox.appendChild(retry);
-      $('amError').textContent='获取失败：'+(e.message||'请检查分享包是否存在');
+      $('amError').textContent='获取提问失败：'+(e.message||'请确认已上传 .lock.json');
       back.addEventListener('click',renderAccountList);
       retry.addEventListener('click',renderCloudLoad);
     }
   });
   $('amBack').addEventListener('click',renderAccountList);
 }
-// 第 2 步：回答提问，答案正确才提取；错误不写入任何数据
-function renderCloudVerify(pkg){
+// 第 2 步：先验证答案，正确后才下载大数据；答案错误不下载、不写入
+function renderCloudVerify(lock,dataUrl){
   $('amTitle').textContent='从云端加载 · 第 2 步';
   const body=$('amBody');
-  const q=pkg.question||'请输入访问密码';
+  const q=lock.question||'请输入访问答案';
   body.innerHTML=
     '<div class="am-form">'
     +'<label>分享者的提问</label>'
@@ -1312,30 +1313,65 @@ function renderCloudVerify(pkg){
   const ansInput=$('amAnswer');ansInput.focus();
   $('amVerify').addEventListener('click',async()=>{
     $('amError').textContent='';
-    try{
-      const payload=await decryptShare(pkg,ansInput.value);
-      const n=(payload.notes||[]).length;
-      const act=$('amAct');
-      act.innerHTML='<div class="am-progress" style="color:var(--accent);text-align:center">答案正确 · 共 '+n+' 则想法（来源：'+(payload.accountName||'云端分享')+'）</div>'
-        +'<div class="am-hint" style="text-align:center">将存入独立的「云端分享」账户，不改动你当前账户；媒体较多时提取可能偏长。</div>'
-        +'<button class="btn-primary" id="amExtract" style="margin-top:8px">提取到本地并查看</button>';
-      $('amExtract').addEventListener('click',()=>extractShare(payload));
-    }catch(e){
-      $('amError').textContent='答案错误或数据包已损坏，请重试';
-      ansInput.select();
-    }
+    let key;
+    try{ key=await openLock(lock,ansInput.value); }
+    catch(e){ $('amError').textContent='答案错误，请重试（答案正确后才会开始下载）';ansInput.select();return; }
+    await downloadAndExtract(key,dataUrl);
   });
   ansInput.addEventListener('keydown',e=>{if(e.key==='Enter')$('amVerify').click();});
   $('amBack').addEventListener('click',renderCloudLoad);
 }
-async function extractShare(payload){
+// 答案正确后：流式下载大数据 → 解密 → 写入独立云端账户
+async function downloadAndExtract(key,dataUrl){
   const act=$('amAct');
-  act.innerHTML='<div class="am-progress">正在写入本地，媒体较多时可能偏长，请勿关闭页面…<br><span id="amProg"></span></div>';
+  act.innerHTML='<div class="am-progress">答案正确，正在下载数据文件…</div>'
+    +'<div class="dl-bar"><span></span></div><div class="dl-meta"><span id="dlNow">0 MB</span><span id="dlPct">准备中…</span></div>';
+  const bar=act.querySelector('.dl-bar>span');
+  const dlNow=act.querySelector('#dlNow');
+  const dlPct=act.querySelector('#dlPct');
+  const t0=Date.now();
   try{
+    const r=await fetch(dataUrl,{cache:'no-store'});
+    if(!r.ok)throw new Error('数据文件加载失败('+r.status+')');
+    const totalLen=+r.headers.get('Content-Length')||0;
+    const enc=(r.headers.get('Content-Encoding')||'').toLowerCase();
+    const lenOK=totalLen>0&&!enc;
+    const reader=r.body.getReader();
+    let received=0;const chunks=[];
+    while(true){
+      const rd=await reader.read();
+      if(rd.done)break;
+      chunks.push(rd.value);received+=rd.value.length;
+      const mb=received/1048576;
+      const sp=mb/((Date.now()-t0)/1000||1);
+      if(lenOK){
+        const pct=Math.min(100,received/totalLen*100);
+        bar.classList.remove('indeterminate');bar.style.width=pct+'%';
+        dlNow.textContent=mb.toFixed(2)+' / '+(totalLen/1048576).toFixed(2)+' MB';
+        dlPct.textContent=Math.round(pct)+'% · '+sp.toFixed(1)+' MB/s';
+      }else{
+        bar.classList.add('indeterminate');bar.style.width='';
+        dlNow.textContent=mb.toFixed(2)+' MB';
+        dlPct.textContent='下载中 · '+sp.toFixed(1)+' MB/s';
+      }
+    }
+    bar.classList.remove('indeterminate');bar.style.width='100%';
+    dlNow.textContent=(received/1048576).toFixed(2)+' MB';
+    dlPct.textContent='下载完成，正在解密解析…';
+    const dataFile=JSON.parse(await new Blob(chunks).text());
+    if(!dataFile||dataFile.format!=='lingyin-data'||!dataFile.data)throw new Error('数据文件格式不正确');
+    const payload=await openData(key,dataFile);
+    act.innerHTML='<div class="am-progress">正在写入本地，媒体较多时可能偏长，请勿关闭页面…<br><span id="amProg"></span></div>';
     await applySharePayload(payload,(d,t)=>{const el=$('amProg');if(el)el.textContent=t?('媒体文件 '+d+' / '+t):'';});
     closeAccountModal();toast('已加载分享内容');
   }catch(e){
-    closeAccountModal();toast('提取失败：'+(e.message||''),'warn');
+    act.innerHTML='';
+    const back=document.createElement('button');back.className='btn-ghost';back.textContent='返回';
+    const retry=document.createElement('button');retry.className='btn-primary';retry.textContent='重试';
+    act.appendChild(back);act.appendChild(retry);
+    $('amError').textContent='下载或提取失败：'+(e.message||'');
+    back.addEventListener('click',renderAccountList);
+    retry.addEventListener('click',()=>renderCloudVerify(lock,dataUrl));
   }
 }
 // 修改当前账户名
