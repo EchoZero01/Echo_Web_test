@@ -53,6 +53,7 @@
 
 /* ============ 基础 ============ */
 *{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{
   font-family:var(--sans);
@@ -324,6 +325,81 @@ body::before{
 .link-card .link-title{font-size:13px;font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .link-card .link-url{font-size:11.5px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .link-card .link-go{width:15px;height:15px;color:var(--ink-3);flex:none}
+
+/* ============ 留言 / 表情 ============ */
+.comments{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.cmt-list{display:flex;flex-direction:column;gap:9px;margin-bottom:10px}
+.cmt-item{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
+.cmt-item .cmt-text{font-size:13.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.cmt-item .cmt-emojis{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.cmt-item .cmt-emojis img{width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:var(--accent-wash);cursor:zoom-in}
+.cmt-meta{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11px;color:var(--ink-3)}
+.cmt-del{margin-left:auto;background:none;border:none;color:var(--ink-3);font-size:11px;cursor:pointer;font-family:inherit;padding:0}
+.cmt-del:hover{color:var(--danger)}
+.cmt-input-row{display:flex;align-items:flex-end;gap:8px;position:relative}
+.cmt-input{flex:1;resize:none;min-height:38px;max-height:140px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.5}
+.cmt-input:focus{outline:none;border-color:var(--accent)}
+.cmt-face{flex:none;width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink-3);cursor:pointer;display:grid;place-items:center;padding:0}
+.cmt-face:hover{color:var(--accent);border-color:var(--accent)}
+.cmt-face svg{width:19px;height:19px}
+.cmt-send{flex:none;height:38px;padding:0 15px;border-radius:9px;border:none;background:var(--accent);color:var(--paper);font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.cmt-send:hover{filter:brightness(1.06)}
+.emoji-panel{position:absolute;bottom:46px;left:0;width:264px;max-width:82vw;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.22);padding:10px}
+.emoji-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-height:188px;overflow-y:auto}
+.emoji-grid .ep-item{position:relative;width:100%;aspect-ratio:1;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:var(--accent-wash);padding:0}
+.emoji-grid .ep-item img{width:100%;height:100%;object-fit:cover;display:block}
+.emoji-grid .ep-item.sel{outline:2px solid var(--accent);outline-offset:1px}
+.emoji-grid .ep-add{display:grid;place-items:center;color:var(--ink-3);font-size:24px;border-style:dashed;line-height:1}
+.emoji-grid .ep-add:hover{color:var(--accent);border-color:var(--accent)}
+.emoji-empty{grid-column:1/-1;text-align:center;font-size:12px;color:var(--ink-3);padding:10px 0}
+
+/* ============ 待办 / 目标 ============ */
+.todo-view{display:block}
+.todo-view[hidden]{display:none}
+.todo-head{margin:6px 0 16px}
+.todo-title{font-size:24px;font-weight:700;margin:0}
+.todo-sub{font-size:13px;color:var(--ink-3);margin:7px 0 0}
+.todo-add{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;margin-bottom:16px;box-shadow:var(--shadow)}
+.td-name{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:10px 12px;font-family:inherit;font-size:14px}
+.td-name:focus{outline:none;border-color:var(--accent)}
+.td-row{display:flex;gap:8px;align-items:center}
+.td-due{flex:none;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:9px 10px;font-family:inherit;font-size:13px;color-scheme:light}
+[data-theme="dark"] .td-due{color-scheme:dark}
+.td-kind{flex:none;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:9px 8px;font-family:inherit;font-size:13px}
+.td-add-btn{flex:none;height:38px}
+.td-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.td-chip{border:1px solid var(--line);background:var(--card);color:var(--ink-2);border-radius:999px;padding:5px 13px;font-size:12.5px;cursor:pointer;font-family:inherit}
+.td-chip.active{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.todo-list{display:flex;flex-direction:column;gap:10px}
+.td-group-label{font-size:12px;color:var(--ink-3);margin:8px 2px 2px}
+.td-item{display:flex;align-items:flex-start;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+.td-item.overdue{border-color:var(--danger)}
+.td-check{flex:none;width:22px;height:22px;margin-top:1px;border:2px solid var(--ink-3);border-radius:7px;background:none;cursor:pointer;display:grid;place-items:center;padding:0}
+.td-check:hover{border-color:var(--accent)}
+.td-check svg{width:13px;height:13px;color:var(--paper);opacity:0;pointer-events:none}
+.td-item.done .td-check{background:var(--accent);border-color:var(--accent)}
+.td-item.done .td-check svg{opacity:1}
+.td-main{flex:1;min-width:0}
+.td-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.td-text{font-size:14.5px;line-height:1.5;word-break:break-word}
+.td-item.done .td-text{text-decoration:line-through;color:var(--ink-3)}
+.td-badge{font-size:10.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--ink-3)}
+.td-badge.goal{color:var(--accent);border-color:var(--accent);background:var(--accent-wash)}
+.td-due-tag{font-size:11.5px;color:var(--ink-3)}
+.td-due-tag.overdue{color:var(--danger);font-weight:600}
+.td-due-tag.today{color:var(--accent);font-weight:600}
+.td-del{flex:none;background:none;border:none;color:var(--ink-3);cursor:pointer;padding:3px}
+.td-del:hover{color:var(--danger)}
+.td-del svg{width:16px;height:16px;display:block}
+.todo-empty{text-align:center;color:var(--ink-3);font-size:13px;padding:34px 0;display:none}
+.todo-empty.show{display:block}
+@media(max-width:640px){
+  .td-row{flex-wrap:wrap}
+  .td-name{font-size:16px}
+  .td-add-btn{flex:1}
+  .emoji-panel{width:242px}
+}
+
 
 /* B站视频卡片 */
 .bili-card{
@@ -686,6 +762,10 @@ body::before{
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>
         <span class="label">文稿</span>
       </button>
+      <button class="icon-btn text-only" id="btnView" title="查看待办与目标">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="label">待办</span>
+      </button>
       <button class="icon-btn" id="btnTheme" title="切换明暗主题">
         <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
@@ -739,7 +819,7 @@ body::before{
   </section>
 
   <!-- ===== 搜索与筛选 ===== -->
-  <section class="toolbar">
+  <section class="toolbar" id="toolbar">
     <div class="search-box" id="searchBox">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="searchInput" type="text" placeholder="搜索想法的标题、正文、标签或链接…">
@@ -760,6 +840,29 @@ body::before{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.34 11 4 4 0 0 0 7 19z"/></svg>
       从云端加载分享内容
     </button>
+  </section>
+
+  <!-- ===== 待办 / 目标 ===== -->
+  <section class="todo-view" id="todoView" hidden>
+    <div class="todo-head">
+      <h2 class="todo-title">待办与目标</h2>
+      <p class="todo-sub">把想做的事放进来，勾选完成、设定期限。</p>
+    </div>
+    <div class="todo-add">
+      <input class="td-name" id="tdName" type="text" placeholder="要做什么？例如：读完第三章 / 跑完 5 公里" maxlength="120">
+      <div class="td-row">
+        <input class="td-due" id="tdDue" type="date" title="期限（可不填）">
+        <select class="td-kind" id="tdKind" title="类型">
+          <option value="todo">待办</option>
+          <option value="goal">目标</option>
+        </select>
+        <button class="btn-primary td-add-btn" id="tdAdd" type="button">添加</button>
+      </div>
+    </div>
+    <div class="td-filters" id="tdFilters"></div>
+    <div class="todo-list" id="todoList"></div>
+    <div class="todo-empty" id="todoEmpty">还没有待办或目标，在上方添加第一条吧。</div>
+    <input type="file" id="emojiFile" accept="image/*" multiple hidden>
   </section>
 </main>
 
@@ -842,7 +945,7 @@ body::before{
 
 /* ============ 常量与状态 ============ */
 const DB_NAME='lingyin.db.v1';
-const DB_VERSION=2;
+const DB_VERSION=3;
 const LEGACY_KEY='mosi.thoughts.v1';
 const THEME_KEY='mosi.theme';
 const ACCOUNT_KEY='lingyin.account.v1';
@@ -850,8 +953,11 @@ const MIGRATE_FLAG='lingyin.migrated.v1';
 const JSZIP_URL='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
 
 let notes=[];
+let todos=[];
+let emojis=[];
 let accounts=[];
 let currentAccountId=null;
+let currentView='notes';
 let activeTag=null, query='', editingId=null;
 const urlCache=new Map();
 const deleteTimers=new Map();
@@ -877,6 +983,12 @@ function openDB(){
       }
       if(!db.objectStoreNames.contains('accounts')){
         db.createObjectStore('accounts',{keyPath:'id'});
+      }
+      if(!db.objectStoreNames.contains('todos')){
+        db.createObjectStore('todos',{keyPath:'id'});
+      }
+      if(!db.objectStoreNames.contains('emojis')){
+        db.createObjectStore('emojis',{keyPath:'id'});
       }
     };
     req.onsuccess=e=>resolve(e.target.result);
@@ -940,8 +1052,13 @@ async function loadAccount(id){
   let rows=[];
   try{rows=await dbAll('notes');}catch(e){rows=[];}
   notes=rows.filter(n=>n.ownerId===id);
+  let tr=[];try{tr=await dbAll('todos');}catch(e){tr=[];}
+  todos=tr.filter(t=>t.ownerId===id);
+  let er=[];try{er=await dbAll('emojis');}catch(e){er=[];}
+  emojis=er.filter(x=>x.ownerId===id);
   updateAccountBtn();
-  render();updateQuota();
+  if(currentView==='todos')renderTodos();else render();
+  updateQuota();
 }
 
 /* ============ 账户界面 ============ */
@@ -1078,6 +1195,15 @@ async function deleteAccount(a){
     }
     await dbDel('notes',n.id);
   }
+  const daT=await dbAll('todos');
+  for(const t of daT){if(t.ownerId===a.id)await dbDel('todos',t.id);}
+  const daE=await dbAll('emojis');
+  for(const em of daE){
+    if(em.ownerId!==a.id)continue;
+    await dbDel('blobs',em.id);
+    const u=urlCache.get(em.id);if(u){URL.revokeObjectURL(u);urlCache.delete(em.id);}
+    await dbDel('emojis',em.id);
+  }
   await dbDel('accounts',a.id);
   accounts=accounts.filter(x=>x.id!==a.id);
   if(a.id===currentAccountId){
@@ -1117,6 +1243,15 @@ async function clearCurrentAccount(){
       const u=urlCache.get(m.id);if(u){URL.revokeObjectURL(u);urlCache.delete(m.id);}
     }
     await dbDel('notes',n.id);
+  }
+  const clT=await dbAll('todos');
+  for(const t of clT){if(t.ownerId===currentAccountId)await dbDel('todos',t.id);}
+  const clE=await dbAll('emojis');
+  for(const em of clE){
+    if(em.ownerId!==currentAccountId)continue;
+    await dbDel('blobs',em.id);
+    const u=urlCache.get(em.id);if(u){URL.revokeObjectURL(u);urlCache.delete(em.id);}
+    await dbDel('emojis',em.id);
   }
   await loadAccount(currentAccountId);
 }
@@ -1173,9 +1308,16 @@ async function buildSharePayload(){
       const row=await dbGet('blobs',m.id);
       media.push({id:m.id,kind:m.kind,name:m.name,type:m.type,size:m.size,dataUrl:row?await blobToDataURL(row.blob):''});
     }
-    outNotes.push({id:n.id,title:n.title,body:n.body,tags:n.tags,link:n.link,createdAt:n.createdAt,updatedAt:n.updatedAt,media});
+    outNotes.push({id:n.id,title:n.title,body:n.body,tags:n.tags,link:n.link,comments:Array.isArray(n.comments)?n.comments:[],createdAt:n.createdAt,updatedAt:n.updatedAt,media});
   }
-  return {format:'lingyin-share-data',version:1,accountName:acc?acc.name:'',exportedAt:new Date().toISOString(),notes:outNotes};
+  const outTodos=todos.filter(t=>t.ownerId===currentAccountId).map(t=>({...t}));
+  const outEmojis=[];
+  for(const em of emojis){
+    if(em.ownerId!==currentAccountId)continue;
+    const row=await dbGet('blobs',em.id);
+    outEmojis.push({id:em.id,name:em.name,type:em.type,size:em.size,createdAt:em.createdAt,dataUrl:row?await blobToDataURL(row.blob):''});
+  }
+  return {format:'lingyin-share-data',version:1,accountName:acc?acc.name:'',exportedAt:new Date().toISOString(),notes:outNotes,todos:outTodos,emojis:outEmojis};
 }
 async function applySharePayload(p,onProgress,targetName){
   const baseName=targetName||'云端分享';
@@ -1195,13 +1337,24 @@ async function applySharePayload(p,onProgress,targetName){
       media.push({id:m.id,kind:m.kind,name:m.name||'',type:m.type||'',size:m.size||0});
       if(m.dataUrl)blobJobs.push(async()=>{try{const b=await dataURLToBlob(m.dataUrl);await dbPut('blobs',{id:m.id,blob:b});}catch(e){}});
     });
-    noteRecs.push({id:n.id,ownerId:acc.id,title:n.title||'',body:n.body||'',tags:Array.isArray(n.tags)?n.tags:[],link:n.link||null,media,createdAt:n.createdAt,updatedAt:n.updatedAt});
+    noteRecs.push({id:n.id,ownerId:acc.id,title:n.title||'',body:n.body||'',tags:Array.isArray(n.tags)?n.tags:[],link:n.link||null,comments:Array.isArray(n.comments)?n.comments:[],media,createdAt:n.createdAt,updatedAt:n.updatedAt});
   });
   const BATCH=24,total=blobJobs.length;let done=0;
   for(let i=0;i<total;i+=BATCH){
     await Promise.all(blobJobs.slice(i,i+BATCH).map(j=>j()));
     done+=Math.min(BATCH,total-i);
     if(onProgress)try{onProgress(done,total);}catch(e){}
+  }
+  const todosIn=Array.isArray(p.todos)?p.todos:[];
+  for(const t of todosIn){
+    if(!t||!t.id)continue;
+    await dbPut('todos',{id:t.id,ownerId:acc.id,title:t.title||'',due:t.due||'',kind:t.kind==='goal'?'goal':'todo',done:!!t.done,doneAt:t.doneAt||'',note:t.note||'',createdAt:t.createdAt||new Date().toISOString()});
+  }
+  const emojisIn=Array.isArray(p.emojis)?p.emojis:[];
+  for(const em of emojisIn){
+    if(!em||!em.id)continue;
+    if(em.dataUrl){try{await dbPut('blobs',{id:em.id,blob:await dataURLToBlob(em.dataUrl)});}catch(e){}}
+    await dbPut('emojis',{id:em.id,ownerId:acc.id,name:em.name||'表情',type:em.type||'image/*',size:em.size||0,createdAt:em.createdAt||new Date().toISOString()});
   }
   await Promise.all(noteRecs.map(r=>dbPut('notes',r)));
   await loadAccount(acc.id);
@@ -1854,6 +2007,264 @@ function bindFav(img,pageUrl){
   if(origin)img.src=origin+'/favicon.ico';
   else{img.style.display='none';if(fb)fb.style.display='block';}
 }
+/* ============ 留言 / 表情包 / 待办 ============ */
+const commentPending=new Map();
+let emojiTargetNote=null;
+let tdFilter='all';
+
+/* ---- 表情包面板 ---- */
+function renderEmojiGrid(grid,noteId){
+  grid.innerHTML='';
+  const sel=new Set(commentPending.get(noteId)||[]);
+  if(!emojis.length){
+    const e=document.createElement('div');e.className='emoji-empty';
+    e.textContent='还没有表情包，点下方 ＋ 上传图片';
+    grid.appendChild(e);
+  }
+  emojis.forEach(em=>{
+    const b=document.createElement('button');b.type='button';
+    b.className='ep-item'+(sel.has(em.id)?' sel':'');b.title=em.name||'表情';
+    const im=document.createElement('img');im.alt=em.name||'表情';im.loading='lazy';
+    getMediaURL(em.id).then(u=>{if(u)im.src=u;});
+    b.appendChild(im);
+    b.addEventListener('click',()=>{
+      const arr=commentPending.get(noteId)||[];
+      const i=arr.indexOf(em.id);
+      if(i>=0){arr.splice(i,1);b.classList.remove('sel');}
+      else{arr.push(em.id);b.classList.add('sel');}
+      commentPending.set(noteId,arr);
+    });
+    grid.appendChild(b);
+  });
+  const add=document.createElement('button');add.type='button';
+  add.className='ep-item ep-add';add.textContent='＋';add.title='上传表情包';
+  add.addEventListener('click',()=>{emojiTargetNote=noteId;$('emojiFile').click();});
+  grid.appendChild(add);
+}
+async function uploadEmojis(fileList){
+  const files=Array.from(fileList||[]);
+  const target=emojiTargetNote;
+  if(!files.length||!target)return;
+  let n=0;
+  for(const f of files){
+    if(!f.type||f.type.indexOf('image/')!==0)continue;
+    const id=uid();
+    await dbPut('blobs',{id,blob:f});
+    const meta={id,ownerId:currentAccountId,name:f.name||('表情'+(n+1)),type:f.type||'image/*',size:f.size||0,createdAt:new Date().toISOString()};
+    await dbPut('emojis',meta);
+    emojis.push(meta);
+    const arr=commentPending.get(target)||[];
+    if(arr.indexOf(id)<0)arr.push(id);
+    commentPending.set(target,arr);
+    n++;
+  }
+  if(n){
+    const card=document.querySelector('.card[data-note="'+target+'"]');
+    if(card){
+      const panel=card.querySelector('.emoji-panel');
+      const grid=card.querySelector('.emoji-grid');
+      if(panel)panel.hidden=false;
+      if(grid)renderEmojiGrid(grid,target);
+    }
+    toast('已添加 '+n+' 个表情包');
+  }
+  emojiTargetNote=null;
+}
+
+/* ---- 留言 ---- */
+function buildComments(note){
+  const wrap=document.createElement('div');wrap.className='comments';
+  const list=document.createElement('div');list.className='cmt-list';
+  (note.comments||[]).forEach(c=>list.appendChild(buildCommentItem(note,c)));
+  wrap.appendChild(list);
+  const row=document.createElement('div');row.className='cmt-input-row';
+  const face=document.createElement('button');face.type='button';face.className='cmt-face';face.title='表情包';
+  face.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>';
+  const panel=document.createElement('div');panel.className='emoji-panel';panel.hidden=true;
+  const grid=document.createElement('div');grid.className='emoji-grid';panel.appendChild(grid);
+  const ta=document.createElement('textarea');ta.className='cmt-input';ta.rows=1;ta.placeholder='追加想法、留言…';
+  const send=document.createElement('button');send.type='button';send.className='cmt-send';send.textContent='留言';
+  row.appendChild(face);row.appendChild(panel);row.appendChild(ta);row.appendChild(send);
+  wrap.appendChild(row);
+  face.addEventListener('click',()=>{
+    const show=panel.hidden;
+    document.querySelectorAll('.emoji-panel').forEach(p=>p.hidden=true);
+    if(show){panel.hidden=false;renderEmojiGrid(grid,note.id);}
+  });
+  const submit=()=>submitComment(note,ta,panel);
+  send.addEventListener('click',submit);
+  ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+  return wrap;
+}
+function buildCommentItem(note,c){
+  const item=document.createElement('div');item.className='cmt-item';
+  if(c.text){
+    const t=document.createElement('div');t.className='cmt-text';t.textContent=c.text;
+    item.appendChild(t);
+  }
+  if(c.emojis&&c.emojis.length){
+    const eb=document.createElement('div');eb.className='cmt-emojis';
+    c.emojis.forEach(id=>{
+      const im=document.createElement('img');im.alt='表情';im.loading='lazy';
+      getMediaURL(id).then(u=>{if(u)im.src=u;});
+      im.addEventListener('click',()=>{window.open(im.src,'_blank');});
+      eb.appendChild(im);
+    });
+    item.appendChild(eb);
+  }
+  const meta=document.createElement('div');meta.className='cmt-meta';
+  const tm=document.createElement('span');tm.textContent=relativeTime(c.createdAt);tm.title=fmtDate(c.createdAt);
+  meta.appendChild(tm);
+  const del=document.createElement('button');del.type='button';del.className='cmt-del';del.textContent='删除';
+  del.addEventListener('click',()=>deleteComment(note.id,c.id));
+  meta.appendChild(del);
+  item.appendChild(meta);
+  return item;
+}
+async function submitComment(note,ta,panel){
+  const text=ta.value.trim();
+  const picked=(commentPending.get(note.id)||[]).slice();
+  if(!text&&!picked.length){ta.focus();return;}
+  if(!Array.isArray(note.comments))note.comments=[];
+  note.comments.push({id:uid(),text:text,emojis:picked,createdAt:new Date().toISOString()});
+  note.updatedAt=new Date().toISOString();
+  commentPending.delete(note.id);
+  await dbPut('notes',note);
+  ta.value='';if(panel)panel.hidden=true;
+  rerenderCard(note.id);renderStats();
+}
+async function deleteComment(noteId,commentId){
+  const note=notes.find(n=>n.id===noteId);if(!note)return;
+  note.comments=(note.comments||[]).filter(c=>c.id!==commentId);
+  note.updatedAt=new Date().toISOString();
+  await dbPut('notes',note);
+  rerenderCard(noteId);
+}
+
+/* ---- 视图切换 ---- */
+function setView(v){
+  currentView=v;
+  const isTodo=v==='todos';
+  ['composer','toolbar','stream','empty'].forEach(id=>{const el=$(id);if(el)el.hidden=isTodo;});
+  $('todoView').hidden=!isTodo;
+  const btn=$('btnView');
+  btn.title=isTodo?'返回想法':'查看待办与目标';
+  btn.innerHTML=isTodo
+    ?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span class="label">想法</span>'
+    :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="label">待办</span>';
+  if(isTodo)renderTodos();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---- 待办 / 目标 ---- */
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dueState(t){
+  if(t.done||!t.due)return '';
+  const today=todayStr();
+  if(t.due<today)return 'overdue';
+  if(t.due===today)return 'today';
+  return '';
+}
+function isOverdue(t){return dueState(t)==='overdue';}
+function dueLabel(t,cls){
+  if(cls==='overdue')return '已逾期 · '+t.due;
+  if(cls==='today')return '今天截止';
+  return '期限 '+t.due;
+}
+function compareTodo(a,b){
+  if(!!a.due!==!!b.due)return a.due?-1:1;
+  if(a.due&&b.due&&a.due!==b.due)return a.due.localeCompare(b.due);
+  return (b.createdAt||'').localeCompare(a.createdAt||'');
+}
+function buildTodoItem(t){
+  const item=document.createElement('div');
+  item.className='td-item'+(t.done?' done':'')+(isOverdue(t)?' overdue':'');
+  const chk=document.createElement('button');chk.type='button';chk.className='td-check';
+  chk.title=t.done?'标记为未完成':'标记完成';
+  chk.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  chk.addEventListener('click',()=>toggleTodo(t.id));
+  const main=document.createElement('div');main.className='td-main';
+  const line=document.createElement('div');line.className='td-line';
+  const txt=document.createElement('span');txt.className='td-text';txt.textContent=t.title;
+  line.appendChild(txt);
+  if(t.kind==='goal'){const bg=document.createElement('span');bg.className='td-badge goal';bg.textContent='目标';line.appendChild(bg);}
+  if(t.due){
+    const cls=dueState(t);
+    const dt=document.createElement('span');
+    dt.className='td-due-tag'+(cls?(' '+cls):'');
+    dt.textContent=dueLabel(t,cls);
+    line.appendChild(dt);
+  }
+  main.appendChild(line);
+  const del=document.createElement('button');del.type='button';del.className='td-del';del.title='删除';
+  del.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  del.addEventListener('click',()=>deleteTodo(t.id));
+  item.appendChild(chk);item.appendChild(main);item.appendChild(del);
+  return item;
+}
+function renderTodos(){
+  const filters=$('tdFilters');
+  if(filters){
+    filters.innerHTML='';
+    const counts={
+      all:todos.length,
+      active:todos.filter(t=>!t.done).length,
+      done:todos.filter(t=>t.done).length,
+      todo:todos.filter(t=>!t.done&&t.kind!=='goal').length,
+      goal:todos.filter(t=>!t.done&&t.kind==='goal').length
+    };
+    [['all','全部'],['active','进行中'],['todo','待办'],['goal','目标'],['done','已完成']].forEach(pair=>{
+      const k=pair[0],label=pair[1];
+      const b=document.createElement('button');b.type='button';
+      b.className='td-chip'+(tdFilter===k?' active':'');
+      b.textContent=label+' '+counts[k];
+      b.addEventListener('click',()=>{tdFilter=k;renderTodos();});
+      filters.appendChild(b);
+    });
+  }
+  let list=todos.slice();
+  if(tdFilter==='active')list=list.filter(t=>!t.done);
+  else if(tdFilter==='done')list=list.filter(t=>t.done);
+  else if(tdFilter==='todo')list=list.filter(t=>!t.done&&t.kind!=='goal');
+  else if(tdFilter==='goal')list=list.filter(t=>!t.done&&t.kind==='goal');
+  const active=list.filter(t=>!t.done).sort(compareTodo);
+  const done=list.filter(t=>t.done).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
+  const box=$('todoList'),empty=$('todoEmpty');
+  box.innerHTML='';
+  if(!list.length){empty.classList.add('show');return;}
+  empty.classList.remove('show');
+  if(active.length){
+    const g=document.createElement('div');g.className='td-group-label';
+    g.textContent=tdFilter==='goal'?'进行中的目标':'进行中';
+    box.appendChild(g);
+    active.forEach(t=>box.appendChild(buildTodoItem(t)));
+  }
+  if(done.length){
+    const g=document.createElement('div');g.className='td-group-label';g.textContent='已完成';
+    box.appendChild(g);
+    done.forEach(t=>box.appendChild(buildTodoItem(t)));
+  }
+}
+async function addTodo(){
+  const name=$('tdName').value.trim();
+  if(!name){$('tdName').focus();return;}
+  const t={id:uid(),ownerId:currentAccountId,title:name,due:$('tdDue').value||'',
+    kind:$('tdKind').value==='goal'?'goal':'todo',done:false,doneAt:'',createdAt:new Date().toISOString()};
+  await dbPut('todos',t);todos.push(t);
+  $('tdName').value='';$('tdDue').value='';$('tdName').focus();
+  renderTodos();toast('已添加');
+}
+async function toggleTodo(id){
+  const t=todos.find(x=>x.id===id);if(!t)return;
+  t.done=!t.done;t.doneAt=t.done?new Date().toISOString():'';
+  await dbPut('todos',t);renderTodos();
+}
+async function deleteTodo(id){
+  await dbDel('todos',id);
+  todos=todos.filter(x=>x.id!==id);
+  renderTodos();
+}
+
 function buildCard(note){
   const card=document.createElement('article');
   card.className='card';card.dataset.note=note.id;
@@ -2062,6 +2473,7 @@ function buildCard(note){
   actions.appendChild(editBtn);actions.appendChild(delBtn);
   foot.appendChild(actions);
   card.appendChild(foot);
+  card.appendChild(buildComments(note));
   return card;
 }
 
@@ -2417,7 +2829,9 @@ function loadJSZip(){
 /* ============ ZIP 导出 ============ */
 async function exportZip(){
   const allNotes=await dbAll('notes');
-  if(!allNotes.length){toast('还没有内容可以备份','warn');return;}
+  const allTodos=await dbAll('todos');
+  const allEmojis=await dbAll('emojis');
+  if(!allNotes.length&&!allTodos.length&&!allEmojis.length){toast('还没有内容可以备份','warn');return;}
   toast('正在打包全部账户，请稍候…');
   let JSZip;
   try{await loadJSZip();JSZip=window.JSZip;}
@@ -2431,13 +2845,21 @@ async function exportZip(){
       folder.file(m.id+safeExt(m),row.blob,{compression:'STORE'});
     }
   }
+  const eFolder=zip.folder('emoji');
+  for(const em of allEmojis){
+    const row=await dbGet('blobs',em.id);
+    if(!row)continue;
+    eFolder.file(em.id+safeExt(em),row.blob,{compression:'STORE'});
+  }
   const clean=allNotes.map(n=>({
     id:n.id,ownerId:n.ownerId,title:n.title,body:n.body,tags:n.tags,link:n.link,
+    comments:Array.isArray(n.comments)?n.comments:[],
     createdAt:n.createdAt,updatedAt:n.updatedAt,
     media:n.media.map(m=>({id:m.id,kind:m.kind,name:m.name,type:m.type,size:m.size,file:'media/'+m.id+safeExt(m)}))
   }));
   const accData=accounts.map(a=>({id:a.id,name:a.name,salt:a.salt,passwordHash:a.passwordHash,createdAt:a.createdAt}));
-  const meta={app:'澪音',owner:'EchoZero',version:4,exportedAt:new Date().toISOString(),accounts:accData,notes:clean};
+  const emojiMeta=allEmojis.map(e=>({id:e.id,ownerId:e.ownerId,name:e.name,type:e.type,size:e.size,createdAt:e.createdAt,file:'emoji/'+e.id+safeExt(e)}));
+  const meta={app:'澪音',owner:'EchoZero',version:5,exportedAt:new Date().toISOString(),accounts:accData,notes:clean,todos:allTodos,emojis:emojiMeta};
   zip.file('notes.json',JSON.stringify(meta,null,2));
   const blob=await zip.generateAsync({type:'blob'});
   downloadBlob('澪音全量备份-'+fileStamp()+'.zip',blob);
@@ -2487,11 +2909,27 @@ async function importZip(file){
         id,ownerId,title:x.title||'',body:x.body||'',
         tags:Array.isArray(x.tags)?x.tags:[],
         link:x.link||null,media,
+        comments:Array.isArray(x.comments)?x.comments:[],
         createdAt:x.createdAt||now,
         updatedAt:x.updatedAt||x.createdAt||now
       };
       await dbPut('notes',note);
       if(existing.has(id))updated++;else{added++;existing.set(id,note);}
+    }
+    const nowImp=new Date().toISOString();
+    if(Array.isArray(data.todos)){
+      for(const t of data.todos){
+        if(!t||!t.id)continue;
+        const ownerId=(t.ownerId&&getAccount(t.ownerId))?t.ownerId:fallbackOwner;
+        await dbPut('todos',{id:t.id,ownerId,title:t.title||'',due:t.due||'',kind:t.kind==='goal'?'goal':'todo',done:!!t.done,doneAt:t.doneAt||'',note:t.note||'',createdAt:t.createdAt||nowImp});
+      }
+    }
+    const emojiList=Array.isArray(data.emojis)?data.emojis:[];
+    for(const em of emojiList){
+      if(!em||!em.id)continue;
+      if(em.file){const ef=zip.file(em.file);if(ef){try{await dbPut('blobs',{id:em.id,blob:await ef.async('blob')});}catch(e){}}}
+      const ownerId=(em.ownerId&&getAccount(em.ownerId))?em.ownerId:fallbackOwner;
+      await dbPut('emojis',{id:em.id,ownerId,name:em.name||'表情',type:em.type||'image/*',size:em.size||0,createdAt:em.createdAt||nowImp});
     }
     await loadAccount(currentAccountId||fallbackOwner);
     toast('导入完成：新增 '+added+' 则，更新 '+updated+' 则');
@@ -2643,6 +3081,10 @@ $('btnAccount').addEventListener('click',openAccountModal);
 $('btnCloudCta').addEventListener('click',()=>{renderCloudLoad();$('accountModal').classList.add('show');});
 $('amClose').addEventListener('click',closeAccountModal);
 $('accountMask').addEventListener('click',closeAccountModal);
+$('btnView').addEventListener('click',()=>setView(currentView==='todos'?'notes':'todos'));
+$('tdAdd').addEventListener('click',addTodo);
+$('tdName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addTodo();}});
+$('emojiFile').addEventListener('change',e=>{uploadEmojis(e.target.files);e.target.value='';});
 $('btnTheme').addEventListener('click',()=>{
   applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
 });
