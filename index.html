@@ -1762,6 +1762,41 @@ async function resolveBili(raw){
 }
 
 /* ============ 网易云歌单 ============ */
+// 从一段含文字的内容里提取第一个 http(s) 链接（兼容中文标点与尾标点）
+function extractFirstURL(text){
+  const s=String(text||'');
+  let m=s.match(/https?:\/\/[^\s<>"'，。；、！？）)】\]'"]+/i);
+  if(!m)m=s.match(/(?:b23\.tv|163cn\.tv|music\.163\.com|bilibili\.com)\/[^\s<>"'，。；、！？）)】\]'"]+/i);
+  if(!m)return '';
+  return m[0].replace(/[.,;:!?，。；、！？）)】\]'"]+$/,'');
+}
+// 163cn.tv 网易云短链展开：microlink（主，回显最终 URL）→ unshorten（备）
+async function expandNeteaseShort(shortUrl){
+  async function viaMicrolink(){
+    const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),12000);
+    try{
+      const r=await fetch('https://api.microlink.io/?url='+encodeURIComponent(shortUrl),{signal:ctrl.signal});
+      if(!r.ok)throw new Error('ml');
+      const j=await r.json();
+      const u=j&&j.data&&j.data.url;
+      if(u&&/music\.163\.com/i.test(u))return u;
+      throw new Error('ml');
+    }finally{clearTimeout(to);}
+  }
+  async function viaUnshorten(){
+    const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),10000);
+    try{
+      const r=await fetch('https://unshorten.me/json/'+encodeURIComponent(shortUrl),{signal:ctrl.signal});
+      if(!r.ok)throw new Error('us');
+      const j=await r.json();
+      const u=j&&j.resolved_url;
+      if(u&&/music\.163\.com/i.test(u))return u;
+      throw new Error('us');
+    }finally{clearTimeout(to);}
+  }
+  try{return await viaMicrolink();}catch(e){}
+  return await viaUnshorten();
+}
 const NETEASE_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
 const GRID_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg>';
 const LIST_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.2" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.2" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.2" cy="18" r="1.3" fill="currentColor" stroke="none"/></svg>';
@@ -1809,7 +1844,7 @@ async function resolveNeteasePlaylist(raw){
   const url='https://music.163.com/#/playlist?id='+info.id;
   return {
     url,title:'网易云歌单',
-    playlist:{id:info.id,name:'网易云歌单',url,songCount:songs.length,view:'list',open:false,fetchedAt:new Date().toISOString(),songs}
+    playlist:{id:info.id,kind:'playlist',name:'网易云歌单',url,songCount:songs.length,view:'list',open:false,fetchedAt:new Date().toISOString(),songs}
   };
 }
 // 识别单曲链接（#/song、/m/song、?id=、/song/数字）
@@ -1840,6 +1875,47 @@ async function resolveNeteaseSong(raw){
     cover:String(x.cover||'').replace(/^http:\/\//,'https://'),duration:Number(x.duration)||0,pay:!!x.pay};
   const url='https://music.163.com/#/song?id='+info.id;
   return {url,title:song.title,song};
+}
+// 识别专辑链接（#/album、/m/album、?id=、/album/数字）
+function detectNeteaseAlbum(raw){
+  const s=String(raw||'');
+  if(!/music\.163\.com/.test(s))return null;
+  if(!/album/.test(s))return null;
+  let m=s.match(/[?&]id=(\d+)/);
+  if(!m)m=s.match(/album\/(\d+)/);
+  if(!m)return null;
+  return {id:m[1]};
+}
+// 拉取专辑曲目（netstart 网易云镜像，CORS *；曲目在顶层 data.songs，dt 为毫秒）
+async function resolveNeteaseAlbum(raw){
+  const info=detectNeteaseAlbum(raw);
+  if(!info)return null;
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(),20000);
+  let r;
+  try{
+    r=await fetch('https://apis.netstart.cn/music/album?id='+info.id,{signal:ctrl.signal});
+  }finally{clearTimeout(to);}
+  if(!r.ok)throw new Error('专辑加载失败');
+  const j=await r.json();
+  const al=j&&j.album,list=j&&Array.isArray(j.songs)?j.songs:[];
+  if(!al||!list.length)throw new Error('专辑解析失败或为空');
+  const artist=Array.isArray(al.artists)?al.artists.map(a=>a.name).join('/'):'';
+  const cover=String(al.picUrl||'').replace(/^http:\/\//,'https://');
+  const songs=list.map(x=>({
+    id:String(x.id),
+    title:x.name||'未知曲目',
+    artist:Array.isArray(x.ar)?x.ar.map(a=>a.name).join('/'):(artist||'未知歌手'),
+    album:al.name||((x.al&&x.al.name)||''),
+    cover:String((x.al&&x.al.picUrl)||cover||'').replace(/^http:\/\//,'https://'),
+    duration:Math.round((Number(x.dt)||0)/1000),
+    pay:Number(x.fee)===1
+  }));
+  const url='https://music.163.com/#/album?id='+info.id;
+  return {
+    url,title:al.name||'网易云专辑',
+    playlist:{id:info.id,kind:'album',name:al.name||'网易云专辑',url,artist:artist,cover:cover,songCount:songs.length,view:'list',open:false,fetchedAt:new Date().toISOString(),songs}
+  };
 }
 
 /* ============ 歌词 ============ */
@@ -2332,7 +2408,7 @@ function buildCard(note){
       openA.href=pl.url;openA.target='_blank';openA.rel='noopener noreferrer';
       openA.innerHTML='<span class="plh-icon">'+NETEASE_ICON+'</span><span class="plh-text"><span class="plh-name"></span><span class="plh-sub"></span></span><span class="plh-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>';
       openA.querySelector('.plh-name').textContent=pl.name||'网易云歌单';
-      openA.querySelector('.plh-sub').textContent='网易云音乐 · 共 '+pl.songCount+' 首';
+      openA.querySelector('.plh-sub').textContent=(pl.kind==='album'?'网易云音乐 · 专辑 · 共 ':'网易云音乐 · 歌单 · 共 ')+pl.songCount+' 首';
       head.appendChild(openA);
       const vt=document.createElement('button');vt.type='button';vt.className='pl-viewtoggle';
       vt.title=isGrid?'切换为列表视图':'切换为网格视图';
@@ -2532,7 +2608,8 @@ function renderPending(state,boxId){
     const clear=()=>{state.link=null;state.linkSeq=(state.linkSeq||0)+1;renderPending(state,boxId);};
     if(state.link.loading){
       const row=document.createElement('div');row.className='pending-bili';
-      const lt=/music\.163\.com/.test(state.link.url)?(/playlist/.test(state.link.url)?'正在加载网易云歌单…':'正在加载网易云歌曲…'):'正在解析 B站视频信息…';
+      const lu=state.link.url;
+      const lt=/163cn\.tv/i.test(lu)?'正在展开网易云短链…':/music\.163\.com/.test(lu)?(/album/.test(lu)?'正在加载网易云专辑…':/playlist/.test(lu)?'正在加载网易云歌单…':'正在加载网易云歌曲…'):'正在解析 B站视频信息…';
       row.innerHTML='<button class="remove" aria-label="移除">×</button><div class="pb-loading"><span class="spin"></span>'+lt+'</div>';
       row.querySelector('.remove').addEventListener('click',clear);
       box.appendChild(row);
@@ -2619,8 +2696,32 @@ function bindFilePicker(btnId,inputId,state,boxId,kind){
 /* 统一的链接提交：B站链接自动解析封面标题，普通链接走原逻辑 */
 async function applyLinkInput(state,inputId,boxId){
   const input=$(inputId);
-  const raw=input.value.trim();
+  let raw=input.value.trim();
   if(!raw)return true;
+  // 粘贴整段文字时，自动提取其中的链接
+  const found=extractFirstURL(raw);
+  if(found){
+    raw=found;
+    if(input.value.trim()!==raw)input.value=raw;
+  }
+  // 网易云 163cn.tv 短链：先展开为真实链接再识别
+  if(/163cn\.tv\//i.test(raw)){
+    state.linkSeq=(state.linkSeq||0)+1;const seq=state.linkSeq;
+    state.link={loading:true,url:raw,title:''};
+    renderPending(state,boxId);
+    let expanded='';
+    try{expanded=await expandNeteaseShort(raw);}catch(e){}
+    if(state.linkSeq!==seq)return true;
+    if(expanded){
+      raw=expanded;
+      if(input.value.trim()!==raw)input.value=raw;
+    }else{
+      state.link=normalizeURL(raw);
+      toast('网易云短链展开失败，已按普通链接收藏','warn');
+      renderPending(state,boxId);
+      return true;
+    }
+  }
   if(detectBili(raw)){
     state.linkSeq=(state.linkSeq||0)+1;const seq=state.linkSeq;
     state.link={loading:true,url:raw,title:''};
@@ -2648,6 +2749,22 @@ async function applyLinkInput(state,inputId,boxId){
       if(state.linkSeq===seq){
         state.link=normalizeURL(raw);
         toast('网易云歌单加载失败，已按普通链接收藏','warn');
+      }
+    }
+    if(state.linkSeq===seq)renderPending(state,boxId);
+    return true;
+  }
+  if(detectNeteaseAlbum(raw)){
+    state.linkSeq=(state.linkSeq||0)+1;const seq=state.linkSeq;
+    state.link={loading:true,url:raw,title:''};
+    renderPending(state,boxId);
+    try{
+      const l=await resolveNeteaseAlbum(raw);
+      if(state.linkSeq===seq)state.link=l;
+    }catch(e){
+      if(state.linkSeq===seq){
+        state.link=normalizeURL(raw);
+        toast('网易云专辑加载失败，已按普通链接收藏','warn');
       }
     }
     if(state.linkSeq===seq)renderPending(state,boxId);
