@@ -1677,6 +1677,12 @@ body.coarse .em-wrap .em-x{opacity:1;width:20px;height:20px;line-height:20px;fon
 .link-card.short-fail{border-style:dashed;background:var(--paper-2);align-items:flex-start;flex-wrap:wrap}
 .link-card.short-fail .link-title{color:var(--ink-2);font-weight:600}
 .short-actions{display:flex;gap:8px;width:100%;margin-top:9px;padding-left:2px}
+.link-card.short-load{opacity:.9}
+.link-card.short-load .sf-spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);display:inline-block;animation:sfspin .8s linear infinite}
+@keyframes sfspin{to{transform:rotate(360deg)}}
+.set-col{flex-direction:column;align-items:stretch;gap:6px}
+.set-in{width:100%;height:36px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 10px;font-family:var(--sans);font-size:13px}
+.set-in:focus{outline:none;border-color:var(--accent)}
 .sf-btn{height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-2);font-size:12.5px;cursor:pointer}
 .sf-btn:hover{border-color:var(--accent);color:var(--accent)}
 .sf-btn:disabled{opacity:.6;cursor:default}
@@ -2824,7 +2830,7 @@ async function loadAccount(id){
 /* ============ 基本设置（按账户持久化） ============ */
 const SETTINGS_V=29;
 function defaultSettings(){
-  return {layout:'side',columns:'auto',fontSize:'m',density:'standard',timeline:true,typo:'normal',theme:null,__v:SETTINGS_V};
+  return {layout:'side',columns:'auto',fontSize:'m',density:'standard',timeline:true,typo:'normal',theme:null,shortRelay:'',__v:SETTINGS_V};
 }
 let settings=defaultSettings();
 function settingsKey(){return 'lingyin.settings.'+currentAccountId;}
@@ -2910,6 +2916,38 @@ function renderSettings(){
   const secTl=sec('右侧时间轴');
   seg(secTl,[{value:'on',label:'显示'},{value:'off',label:'隐藏'}],settings.timeline?'on':'off',v=>pickSetting('timeline',v==='on'));
   seg(sec('正文排版'),[{value:'compact',label:'紧凑'},{value:'normal',label:'标准'},{value:'loose',label:'宽松'}],settings.typo||'normal',v=>{settings.typo=v;saveSettings();applySettings();renderSettings();});
+  const srSec=sec('短链解析（B 站 / 网易云）');
+  const srRow=document.createElement('div');srRow.className='set-row set-col';
+  const srIn=document.createElement('input');srIn.type='url';srIn.className='set-in';srIn.id='setShortRelay';
+  srIn.placeholder='https://你的中继.workers.dev/?url=';srIn.value=settings.shortRelay||'';
+  const srHint=document.createElement('div');srHint.className='set-rd';
+  srHint.textContent='可选。不填也能用，但公共代理在部分网络下会超时；自建 20 行 Cloudflare Worker 可稳定到 1 秒内。';
+  const srBtns=document.createElement('div');srBtns.className='set-row';
+  const srSave=document.createElement('button');srSave.type='button';srSave.className='set-opt';srSave.textContent='保存中继';
+  const srTest=document.createElement('button');srTest.type='button';srTest.className='set-opt';srTest.textContent='测试中继';
+  const srOut=document.createElement('span');srOut.className='set-hint';srOut.textContent='';
+  srSave.addEventListener('click',()=>{
+    const v=srIn.value.trim();
+    if(v&&!/^https:\/\//i.test(v)){toast('中继地址必须以 https:// 开头','warn');return;}
+    settings.shortRelay=v;saveSettings();toast(v?'中继已保存':'已清空中继，使用公共代理');
+  });
+  srTest.addEventListener('click',async()=>{
+    const v=srIn.value.trim();
+    if(!/^https:\/\//i.test(v)){srOut.textContent='先填一个 https 地址';return;}
+    srOut.textContent='测试中…';srTest.disabled=true;
+    const t0=Date.now();
+    try{
+      const u=v+(v.includes('?')?'&':'?')+'url='+encodeURIComponent('https://b23.tv/0pbfNmH');
+      const txt=await fetchTextWithTimeout(u,6000);
+      let final='';try{const j=JSON.parse(txt);final=(j&&(j.final||j.url))||'';}catch(e){}
+      const c=canonicalizeShortResult(final)||'';
+      srOut.textContent=c?('成功 · '+(Date.now()-t0)+'ms · '+c):('返回不可用 · '+(Date.now()-t0)+'ms');
+    }catch(e){
+      srOut.textContent='失败 · '+(Date.now()-t0)+'ms';
+    }finally{srTest.disabled=false;}
+  });
+  srBtns.appendChild(srSave);srBtns.appendChild(srTest);srBtns.appendChild(srOut);
+  srRow.appendChild(srIn);srRow.appendChild(srHint);srSec.appendChild(srRow);srSec.appendChild(srBtns);
   const tagSec=sec('标签管理（改名 / 合并 / 删除只改标签，不删想法）');
   const counts=tagCounts();
   const tw=document.createElement('div');tw.className='tag-manage';
@@ -3705,81 +3743,162 @@ function extractFirstURL(text){
   if(!m)return '';
   return m[0].replace(/[.,;:!?，。；、！？）)】\]'"]+$/,'');
 }
-/* ============ v27 短链：识别 / 展开 / 缓存 ============ */
+/* ============ v33 短链：并行竞速 / 中继 / 缓存 ============ */
 const SHORT_CACHE_KEY='lingyin.shortcache';
-const SHORT_TTL=24*3600*1000;
+const SHORT_TTL=30*24*3600*1000;      // 正缓存 30 天
+const SHORT_NEG_TTL=10*60*1000;       // 负缓存 10 分钟
+const SHORT_CAP=200;
+const SHORT_TOTAL_MS=6000;            // 总预算
+const SHORT_TRY_MS=2500;              // 单入口预算
+const shortRelayDownUntil=Object.create(null);
+
 function shortCacheRead(){
-  try{const o=JSON.parse(localStorage.getItem(SHORT_CACHE_KEY)||'{}');return o&&typeof o==='object'?o:{};}catch(e){return {};}
-}
-function shortCacheGet(url){
-  const o=shortCacheRead(),hit=o[url];
-  if(!hit||!hit.url)return '';
-  if(Date.now()-(hit.ts||0)>SHORT_TTL)return '';
-  return hit.url;
-}
-function shortCacheSet(url,final){
   try{
-    const o=shortCacheRead();
-    o[url]={url:final,ts:Date.now()};
-    const keys=Object.keys(o);
-    if(keys.length>50){keys.sort((a,b)=>(o[a].ts||0)-(o[b].ts||0));for(let i=0;i<keys.length-50;i++)delete o[keys[i]];}
+    const raw=JSON.parse(localStorage.getItem(SHORT_CACHE_KEY)||'{}');
+    if(raw&&raw.v===2&&raw.pos)return raw;
+    // v1 -> v2 兼容：旧结构就是 {url:{url,ts}}
+    const pos={};
+    if(raw&&typeof raw==='object')Object.keys(raw).forEach(k=>{
+      const v=raw[k];if(v&&v.url)pos[k]={final:v.url,ts:v.ts||0,via:'legacy'};
+    });
+    return {v:2,pos:pos,neg:{},relay:{}};
+  }catch(e){return {v:2,pos:{},neg:{},relay:{}};}
+}
+function shortCacheWrite(o){
+  try{
+    const keys=Object.keys(o.pos||{});
+    if(keys.length>SHORT_CAP){
+      keys.sort((a,b)=>(o.pos[a].ts||0)-(o.pos[b].ts||0));
+      for(let i=0;i<keys.length-SHORT_CAP;i++)delete o.pos[keys[i]];
+    }
+    const nk=Object.keys(o.neg||{});
+    if(nk.length>SHORT_CAP){nk.sort((a,b)=>(o.neg[a].ts||0)-(o.neg[b].ts||0));for(let i=0;i<nk.length-SHORT_CAP;i++)delete o.neg[nk[i]];}
     localStorage.setItem(SHORT_CACHE_KEY,JSON.stringify(o));
   }catch(e){}
 }
-// 从任意文本里提取「像最终地址」的链接
-function pickFinalURL(txt,family){
-  if(!txt)return '';
-  const pats=family==='bili'
-    ?[/bilibili\.com\/video\/BV[0-9A-Za-z]{10}[^\s"'<>)]*/i,/BV[0-9A-Za-z]{10}/]
-    :[/music\.163\.com[^\s"'<>)]*/i,/163cn\.tv\/[0-9A-Za-z]+/i];
-  for(const p of pats){
-    const m=String(txt).match(p);
-    if(m){
-      const u=m[0];
-      if(/^BV/i.test(u))return 'https://www.bilibili.com/video/'+u+'/';
-      if(/^163cn/i.test(u))return 'https://'+u.replace(/^https?:\/\//i,'');
-      return u;
-    }
+function shortCacheGet(url){
+  const o=shortCacheRead(),hit=o.pos[url];
+  if(!hit||!hit.final)return '';
+  if(Date.now()-(hit.ts||0)>SHORT_TTL)return '';
+  return hit.final;
+}
+function shortCacheSet(url,final,via){
+  const o=shortCacheRead();
+  o.pos[url]={final:final,ts:Date.now(),via:via||'relay'};
+  delete o.neg[url];
+  shortCacheWrite(o);
+}
+function shortNegGet(url){
+  const o=shortCacheRead(),hit=o.neg[url];
+  if(!hit)return '';
+  if(Date.now()-(hit.ts||0)>SHORT_NEG_TTL)return '';
+  return hit.reason||'unreachable';
+}
+function shortNegSet(url,reason){
+  const o=shortCacheRead();
+  o.neg[url]={ts:Date.now(),reason:reason||'unreachable'};
+  shortCacheWrite(o);
+}
+function relayMarkDown(name){
+  shortRelayDownUntil[name]=Date.now()+10*60*1000;
+  try{const o=shortCacheRead();o.relay=o.relay||{};o.relay[name]={ok:false,ts:Date.now()};shortCacheWrite(o);}catch(e){}
+}
+function relayMarkUp(name,ms){
+  delete shortRelayDownUntil[name];
+  try{const o=shortCacheRead();o.relay=o.relay||{};o.relay[name]={ok:true,ts:Date.now(),ms:ms};shortCacheWrite(o);}catch(e){}
+}
+function relayIsDown(name){return (shortRelayDownUntil[name]||0)>Date.now();}
+
+function shortFinalOK(final,src){
+  const f=String(final||'').trim();
+  if(!/^https?:\/\//i.test(f))return false;
+  if(f===src)return false;
+  if(/b23\.tv|bili2233\.cn|163cn\.tv/i.test(f))return false;
+  return /bilibili\.com\/video\/(BV[0-9A-Za-z]{10}|av\d+)/i.test(f)
+      || /music\.163\.com\/.*(song|playlist|album)/i.test(f)
+      || /y\.music\.163\.com\/m\/song\?id=\d+/.test(f);
+}
+function canonicalizeShortResult(u){
+  const s=String(u||'');
+  let m=s.match(/\/video\/(BV[0-9A-Za-z]{10})/); if(m)return 'https://www.bilibili.com/video/'+m[1];
+  m=s.match(/\/video\/av(\d+)/i); if(m)return 'https://www.bilibili.com/video/av'+m[1];
+  m=s.match(/BV[0-9A-Za-z]{10}/); if(m)return 'https://www.bilibili.com/video/'+m[0];
+  m=s.match(/[?&#]id=(\d+)/);
+  if(/music\.163\.com|y\.music\.163\.com/.test(s)&&m){
+    if(/playlist/i.test(s))return 'https://music.163.com/#/playlist?id='+m[1];
+    if(/album/i.test(s))return 'https://music.163.com/#/album?id='+m[1];
+    return 'https://music.163.com/#/song?id='+m[1];
   }
   return '';
 }
-async function fetchTextWithTimeout(url,ms){
+function shortRelays(){
+  const list=[];
+  const custom=String((typeof settings!=='undefined'&&settings&&settings.shortRelay)||'').trim();
+  if(/^https:\/\//i.test(custom)){
+    list.push({name:'custom',kind:'json',build:u=>{
+      if(/[?&]url=$/.test(custom)||/[?&]url=/.test(custom))return custom+encodeURIComponent(u);
+      return custom+(custom.includes('?')?'&':'?')+'url='+encodeURIComponent(u);
+    }});
+  }
+  list.push({name:'jina',kind:'text',build:u=>'https://r.jina.ai/'+u});
+  list.push({name:'allorigins',kind:'text',build:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)});
+  list.push({name:'codetabs',kind:'text',build:u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u)});
+  return list;
+}
+async function fetchTextWithTimeout(url,ms,signal){
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),ms||8000);
+  const onAbort=()=>ctrl.abort();
+  if(signal)signal.addEventListener('abort',onAbort,{once:true});
   try{
     const r=await fetch(url,{signal:ctrl.signal});
     if(!r.ok)throw new Error('HTTP '+r.status);
     return await r.text();
-  }finally{clearTimeout(to);}
+  }finally{clearTimeout(to);if(signal)signal.removeEventListener('abort',onAbort);}
 }
-const SHORT_EXPANDERS=[
-  {name:'jina',build:u=>'https://r.jina.ai/'+u,read:t=>pickFinalURL(t,'any')},
-  {name:'allorigins',build:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),read:t=>pickFinalURL(t,'any')},
-  {name:'codetabs',build:u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),read:t=>pickFinalURL(t,'any')},
-  {name:'microlink',build:u=>'https://api.microlink.io/?url='+encodeURIComponent(u),read:async t=>{try{const j=JSON.parse(t);return (j&&j.data&&(j.data.url||j.data.finalUrl))||'';}catch(e){return '';}}}
-];
-// 展开任意短链；失败返回空字符串（不抛错）
+// 展开任意短链：并行竞速，总超时 6 秒；失败返回空字符串（不抛错）
 async function expandShort(raw,opts){
-  const url=String(raw||'').trim();
-  if(!url)return '';
+  const src=String(raw||'').trim();
+  if(!src)return '';
   const force=!!(opts&&opts.force);
   if(!force){
-    const hit=shortCacheGet(url);
+    const hit=shortCacheGet(src);
     if(hit)return hit;
+    if(shortNegGet(src))return '';
   }
-  const family=/b23\.tv|bili2233|bilibili/i.test(url)?'bili':'netease';
-  for(const ep of SHORT_EXPANDERS){
-    try{
-      const txt=await fetchTextWithTimeout(ep.build(url),8000);
-      let final=await ep.read(txt);
-      if(!final)final=pickFinalURL(txt,family);
-      if(final&&/^https?:\/\//i.test(final)){
-        shortCacheSet(url,final);
-        return final;
+  const family=/b23\.tv|bili2233|bilibili/i.test(src)?'bili':'netease';
+  let relays=shortRelays();
+  const alive=relays.filter(r=>!relayIsDown(r.name));
+  if(alive.length)relays=alive;
+  if(!relays.length)return '';
+  const ctrl=new AbortController();
+  const total=setTimeout(()=>ctrl.abort(),SHORT_TOTAL_MS);
+  try{
+    const got=await Promise.any(relays.map(async ep=>{
+      const t0=Date.now();
+      const txt=await fetchTextWithTimeout(ep.build(src),SHORT_TRY_MS,ctrl.signal);
+      let final='',html='';
+      if(ep.kind==='json'){
+        try{const j=JSON.parse(txt);final=j.final||j.url||'';html=j.html||'';}catch(e){}
+      }else{
+        final=pickFinalURL(txt,family);html=txt;
       }
-    }catch(e){/* 下一个入口 */}
+      if(!final&&html)final=pickFinalURL(html,family);
+      const canon=canonicalizeShortResult(final);
+      if(!shortFinalOK(canon||final,src))throw new Error('invalid');
+      relayMarkUp(ep.name,Date.now()-t0);
+      return canon||final;
+    }));
+    clearTimeout(total);
+    const canon=canonicalizeShortResult(got)||got;
+    shortCacheSet(src,canon,'race');
+    return canon;
+  }catch(e){
+    clearTimeout(total);
+    relays.forEach(r=>{/* 全部失败则各自标灰由单个失败处理 */});
+    shortNegSet(src,'unreachable');
+    return '';
   }
-  return '';
 }
 // 把展开后的完整链接解析成卡片数据
 async function resolveExpandedLink(raw){
@@ -3788,6 +3907,43 @@ async function resolveExpandedLink(raw){
   if(detectNeteaseAlbum(raw))return await resolveNeteaseAlbum(raw);
   if(detectNeteaseSong(raw))return await resolveNeteaseSong(raw);
   return normalizeURL(raw);
+}
+// 保存时短链还没解析完：后台补全并只重绘该卡片
+async function finishShortLink(id){
+  const note=notes.find(n=>n.id===id);
+  if(!note||!note.link||!note.link.resolving)return;
+  const url=note.link.url;
+  const isShort=classifyLink(url).kind==='short';
+  const fam=note.link.family||(/b23|bili2233/i.test(url)?'bili':'netease');
+  if(isShort){
+    const full=await expandShort(url);
+    if(!full){
+      note.link={kind:'short',family:fam,url:url,failedAt:Date.now(),failReason:'unreachable'};
+      note.updatedAt=new Date().toISOString();
+      await dbPut('notes',note);
+      try{rerenderCard(id);}catch(e){}
+      toast('短链展开失败，卡片上可以重试');
+      return;
+    }
+    note.link=await safeResolveLink(full,{family:fam,url:url});
+  }else{
+    note.link=await safeResolveLink(url,{family:fam,url:url});
+  }
+  note.updatedAt=new Date().toISOString();
+  await dbPut('notes',note);
+  try{rerenderCard(id);}catch(e){}
+}
+async function safeResolveLink(full,meta){
+  try{return await resolveExpandedLink(full);}
+  catch(e){return {kind:'short-kept',url:full,title:(meta&&meta.family==='bili'?'B 站视频':'链接')};}
+}
+function keepShortOnly(id){
+  const note=notes.find(n=>n.id===id);if(!note||!note.link)return;
+  const url=note.link.url;
+  note.link={kind:'short-kept',url:url,title:'短链（未展开）'};
+  note.updatedAt=new Date().toISOString();
+  dbPut('notes',note).then(()=>{try{rerenderCard(id);}catch(e){}});
+  toast('已按普通链接收藏');
 }
 // 重新展开某条想法的短链（失败卡片上的「重试」）
 async function retryShortLink(id,btn){
@@ -5322,20 +5478,32 @@ function buildCard(note){
       a.querySelector('img').src=b.pic;
       a.querySelector('.bc-title').textContent=note.link.title;
       a.querySelector('.bc-owner span').textContent=(b.owner?b.owner+' · ':'')+'bilibili.com';
+    }else if(note.link.resolving){
+      a=document.createElement('div');
+      a.className='link-card short-load';
+      a.innerHTML='<span class="link-ico"><span class="sf-spin"></span></span>'
+        +'<span class="link-meta"><span class="link-title">短链识别中…</span><span class="link-url"></span></span>';
+      a.querySelector('.link-url').textContent=note.link.url||'';
     }else if(note.link.kind==='short'){
       a=document.createElement('div');
       a.className='link-card short-fail';
       const fam=note.link.family==='bili'?'B 站':'网易云';
+      const reason={timeout:'网络超时',blocked:'中继被拦截',http:'目标站拒绝访问',unreachable:'解析通道暂时不可用'}[note.link.failReason||'']||'解析通道暂时不可用';
       a.innerHTML='<span class="link-ico"><svg class="fb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>'
         +'<span class="link-meta"><span class="link-title"></span><span class="link-url"></span></span>';
-      a.querySelector('.link-title').textContent=fam+'短链 · 展开失败（公共代理不可用）';
+      a.querySelector('.link-title').textContent=fam+'短链 · 展开失败（'+reason+'）';
       a.querySelector('.link-url').textContent=note.link.url;
       const act=document.createElement('div');act.className='short-actions';
       const rb=document.createElement('button');rb.type='button';rb.className='sf-btn';rb.textContent='重试';
       rb.addEventListener('click',e=>{e.stopPropagation();retryShortLink(note.id,rb);});
+      const ob=document.createElement('a');ob.className='sf-btn';ob.textContent='在浏览器打开';
+      ob.href=note.link.url;ob.target='_blank';ob.rel='noopener noreferrer';
+      ob.addEventListener('click',e=>e.stopPropagation());
       const pb=document.createElement('button');pb.type='button';pb.className='sf-btn';pb.textContent='粘贴完整链接';
       pb.addEventListener('click',e=>{e.stopPropagation();pasteFullLink(note.id);});
-      act.appendChild(rb);act.appendChild(pb);
+      const kb=document.createElement('button');kb.type='button';kb.className='sf-btn';kb.textContent='仅收藏短链';
+      kb.addEventListener('click',e=>{e.stopPropagation();keepShortOnly(note.id);});
+      act.appendChild(rb);act.appendChild(ob);act.appendChild(pb);act.appendChild(kb);
       a.appendChild(act);
     }else{
       a=document.createElement('a');
@@ -5469,7 +5637,7 @@ function renderPending(state,boxId){
     if(state.link.loading){
       const row=document.createElement('div');row.className='pending-bili';
       const lu=state.link.url;
-      const lt=/163cn\.tv/i.test(lu)?'正在展开网易云短链…':/music\.163\.com/.test(lu)?(/album/.test(lu)?'正在加载网易云专辑…':/playlist/.test(lu)?'正在加载网易云歌单…':'正在加载网易云歌曲…'):'正在解析 B站视频信息…';
+      const lt=/163cn\.tv/i.test(lu)?'正在展开网易云短链…':/b23\.tv|bili2233/i.test(lu)?'正在展开 B 站短链…':/music\.163\.com/.test(lu)?(/album/.test(lu)?'正在加载网易云专辑…':/playlist/.test(lu)?'正在加载网易云歌单…':'正在加载网易云歌曲…'):'正在解析 B站视频信息…';
       row.innerHTML='<button class="remove" aria-label="移除">×</button><div class="pb-loading"><span class="spin"></span>'+lt+'</div>';
       row.querySelector('.remove').addEventListener('click',clear);
       box.appendChild(row);
@@ -5623,7 +5791,7 @@ async function applyLinkInput(state,inputId,boxId){
     }else{
       // 展开失败：保留可重试的失败卡片，而不是静默降级
       state.link={kind:'short',family:cls.family,url:cls.url,failedAt:Date.now()};
-      toast('短链展开失败：公共代理暂时不可用，可点卡片重试或粘贴完整链接','warn');
+      toast('短链展开失败：解析通道暂时不可用，可点卡片重试、在浏览器打开或粘贴完整链接','warn');
       renderPending(state,boxId);
       return true;
     }
@@ -5722,7 +5890,8 @@ function bindLinkToggle(btnId,inputId,state,boxId){
 
 /* ============ 新建 ============ */
 async function saveNew(){
-  if(!await applyLinkInput(cState,'cLink','cPending'))return;
+  const pShort=(cState.link&&cState.link.loading&&cState.link.url)?{url:cState.link.url,short:classifyLink(cState.link.url).kind==='short'}:null;
+  if(!pShort&&!await applyLinkInput(cState,'cLink','cPending'))return;
   const title=$('cTitle').value.trim();
   const body=$('cBody').value.trim();
   const tags=parseTags($('cTags').value);
@@ -5732,7 +5901,8 @@ async function saveNew(){
   const now=new Date().toISOString();
   const hl=reconcileHl(cState.hl,body);
   if((cState.hl||[]).length!==hl.length)toast('有 '+((cState.hl||[]).length-hl.length)+' 处高亮因文字改动失效','warn');
-  const note={id:uid(),ownerId:currentAccountId,title,body,tags,link:cState.link,media:[],relatedIds:[...new Set(cState.relatedIds||[])].filter(Boolean),countdown:cState.countdown||null,unlockAt:cState.unlockAt||0,pinned:false,archivedAt:0,hl:hl,createdAt:now,updatedAt:now};
+  const noteLink=pShort?Object.assign({url:pShort.url,resolving:true,ts:Date.now()},pShort.short?{kind:'short',family:(/(b23|bili2233)/i.test(pShort.url)?'bili':'netease')}:{}):cState.link;
+  const note={id:uid(),ownerId:currentAccountId,title,body,tags,link:noteLink,media:[],relatedIds:[...new Set(cState.relatedIds||[])].filter(Boolean),countdown:cState.countdown||null,unlockAt:cState.unlockAt||0,pinned:false,archivedAt:0,hl:hl,createdAt:now,updatedAt:now};
   for(const m of cState.media){
     await dbPut('blobs',{id:m.id,blob:m.file});
     note.media.push({id:m.id,kind:m.kind,name:m.name,type:m.type,size:m.size});
@@ -5746,6 +5916,7 @@ async function saveNew(){
   resetComposer();
   render();updateQuota();
   toast('已记下这则想法');
+  if(pShort)finishShortLink(note.id);
 }
 function resetComposer(silent){
   cState.media.forEach(m=>URL.revokeObjectURL(m.url));
@@ -5850,7 +6021,8 @@ async function saveEdit(){
     toast('标题与标签已更新，正文仍锁定');
     return;
   }
-  if(!await applyLinkInput(mState,'mLink','mPending'))return;
+  const pShort=(mState.link&&mState.link.loading&&mState.link.url)?{url:mState.link.url,short:classifyLink(mState.link.url).kind==='short'}:null;
+  if(!pShort&&!await applyLinkInput(mState,'mLink','mPending'))return;
   const body=$('mBody').value.trim();
   if(!title&&!body&&!mState.media.length&&!mState.link){
     toast('想法不能是空白的','warn');return;
@@ -5869,12 +6041,13 @@ async function saveEdit(){
   const hl=reconcileHl(mState.hl,body);
   if((mState.hl||[]).length!==hl.length)toast('有 '+((mState.hl||[]).length-hl.length)+' 处高亮因文字改动失效','warn');
   note.title=title;note.body=body;note.tags=tags;note.hl=hl;
-  note.link=mState.link;
+  note.link=pShort?Object.assign({url:pShort.url,resolving:true,ts:Date.now()},pShort.short?{kind:'short',family:(/(b23|bili2233)/i.test(pShort.url)?'bili':'netease')}:{}):mState.link;
   note.media=mState.media.map(m=>({id:m.id,kind:m.kind,name:m.name,type:m.type,size:m.size}));
   note.updatedAt=new Date().toISOString();
   await dbPut('notes',note);
   closeModal();render();updateQuota();
   toast('修改已保存');
+  if(pShort)finishShortLink(note.id);
 }
 
 /* ============ 删除 ============ */
@@ -7325,6 +7498,25 @@ function updateSidePlayer(){
   if(pg)pg.hidden=!has||isNe;
   if(bar&&!isNe){const au=plyAudioEl();const d=au&&au.duration?au.duration:0;bar.style.width=(d>0?Math.min(100,au.currentTime/d*100):0)+'%';}
 }
+function initV33(){
+  if(document.body.dataset.v33)return;
+  document.body.dataset.v33='1';
+  const bind=(inputId,state,boxId)=>{
+    const el=$(inputId);if(!el||el.dataset.shortPre)return;el.dataset.shortPre='1';
+    let t=null;
+    el.addEventListener('input',()=>{
+      clearTimeout(t);
+      t=setTimeout(()=>{
+        const v=el.value.trim();const cls=v?classifyLink(v):null;
+        if(!cls||cls.kind!=='short')return;
+        if(state.link&&state.link.loading&&state.link.url===cls.url)return;
+        applyLinkInput(state,inputId,boxId);
+      },350);
+    });
+  };
+  bind('cLink',cState,'cPending');
+  bind('mLink',mState,'mPending');
+}
 function initV31(){
   const sp=$('sidePlayer');if(!sp||sp.dataset.bound)return;sp.dataset.bound='1';
   const vs=$('plyVol');if(vs)vs.value=String(Math.round((typeof volume==='number'?volume:.85)*100));
@@ -7541,6 +7733,7 @@ function onAccountReady(){
   try{initEmojiDel();}catch(e){console.warn('[emoji]',e);}
   try{initV30();}catch(e){console.warn('[v30]',e);}
   try{initV31();}catch(e){console.warn('[v31]',e);}
+  try{initV33();}catch(e){console.warn('[v33]',e);}
 }
 function bindAudioOnce(){
   const a=plyAudioEl();
