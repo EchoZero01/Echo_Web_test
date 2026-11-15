@@ -1918,6 +1918,22 @@ body.fs-l{--fs-k:1.12}
   .sc-quick button:hover{border-color:var(--accent);color:var(--accent-deep)}
 }
 
+/* ===== v33b：短链中继引导 ===== */
+.relay-help{position:fixed;inset:0;z-index:9900;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(16,18,20,.42);backdrop-filter:blur(3px)}
+.relay-help.show{display:flex}
+.rh-inner{width:min(620px,94vw);max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:0 30px 70px -30px rgba(0,0,0,.5)}
+.rh-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rh-head b{font-family:var(--serif);font-size:17px}
+.rh-x{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink-2);font-size:17px;cursor:pointer}
+.rh-p{font-size:13px;line-height:1.65;color:var(--ink-2);margin:6px 0}
+.rh-p.small{font-size:11.5px;color:var(--ink-3)}
+.rh-steps{font-size:13px;line-height:1.9;color:var(--ink-2);padding-left:18px;margin:8px 0}
+.rh-steps code{background:var(--accent-wash);padding:0 4px;border-radius:4px;font-size:12px}
+.rh-code{max-height:240px;overflow:auto;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:11.5px;line-height:1.55;white-space:pre;color:var(--ink-2)}
+.rh-btns{display:flex;gap:10px;margin-top:12px}
+.rh-btn{height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:13px}
+.rh-btn.primary{background:var(--accent);border-color:transparent;color:var(--paper)}
+.sf-tip{margin-top:8px;border:none;background:none;padding:0;font-size:11.5px;color:var(--ink-3);text-decoration:underline;cursor:pointer;text-align:left}
 /* ===== v31：右栏常驻播放器 / 网易云常驻 iframe ===== */
 #neKeeper{position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
 #neKeeper iframe{width:1px;height:1px;border:0}
@@ -2434,6 +2450,23 @@ body.src-netease .pl-vol{opacity:.35;pointer-events:none}
 </div>
 
 
+<div class="relay-help" id="relayHelp" role="dialog" aria-modal="true" aria-label="配置短链中继">
+  <div class="rh-inner">
+    <div class="rh-head"><b>短链解析需要一个中继</b><button type="button" class="rh-x" id="rhClose" aria-label="关闭">×</button></div>
+    <p class="rh-p">B 站 / 网易云的短链返回 302，但响应不允许跨域读取，浏览器拿不到最终地址。公共代理在部分网络下不可用；部署一个 20 行的 Cloudflare Worker 后，解析会稳定到 1 秒内。</p>
+    <ol class="rh-steps">
+      <li>打开 <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">dash.cloudflare.com</a> → Workers &amp; Pages → Create → Worker</li>
+      <li>把下面代码整段粘贴进去，Deploy</li>
+      <li>复制形如 <code>https://xxx.workers.dev/</code> 的地址，点「去设置」填入「自建中继」</li>
+    </ol>
+    <pre class="rh-code" id="rhCode"></pre>
+    <div class="rh-btns">
+      <button type="button" class="rh-btn" id="rhCopy">复制代码</button>
+      <button type="button" class="rh-btn primary" id="rhSet">去设置</button>
+    </div>
+    <p class="rh-p small">不想部署也可以：失败卡片上点「在浏览器打开」，把地址栏的完整链接复制回来粘贴。</p>
+  </div>
+</div>
 <div class="toast-wrap" id="toastWrap"></div>
 <input type="file" id="fileImage" accept="image/*" multiple hidden>
 <input type="file" id="fileVideo" accept="video/*" hidden>
@@ -2830,7 +2863,7 @@ async function loadAccount(id){
 /* ============ 基本设置（按账户持久化） ============ */
 const SETTINGS_V=29;
 function defaultSettings(){
-  return {layout:'side',columns:'auto',fontSize:'m',density:'standard',timeline:true,typo:'normal',theme:null,shortRelay:'',__v:SETTINGS_V};
+  return {layout:'side',columns:'auto',fontSize:'m',density:'standard',timeline:true,typo:'normal',theme:null,shortRelay:'',shortKey:'',shortTimeout:8,__v:SETTINGS_V};
 }
 let settings=defaultSettings();
 function settingsKey(){return 'lingyin.settings.'+currentAccountId;}
@@ -2916,28 +2949,53 @@ function renderSettings(){
   const secTl=sec('右侧时间轴');
   seg(secTl,[{value:'on',label:'显示'},{value:'off',label:'隐藏'}],settings.timeline?'on':'off',v=>pickSetting('timeline',v==='on'));
   seg(sec('正文排版'),[{value:'compact',label:'紧凑'},{value:'normal',label:'标准'},{value:'loose',label:'宽松'}],settings.typo||'normal',v=>{settings.typo=v;saveSettings();applySettings();renderSettings();});
-  const srSec=sec('短链解析（B 站 / 网易云）');
+  const srSec=sec('短链解析（中继地址，不是你网站的域名）');
   const srRow=document.createElement('div');srRow.className='set-row set-col';
   const srIn=document.createElement('input');srIn.type='url';srIn.className='set-in';srIn.id='setShortRelay';
-  srIn.placeholder='https://你的中继.workers.dev/?url=';srIn.value=settings.shortRelay||'';
+  srIn.placeholder='例如 https://xxxx.netlify.app/.netlify/functions/expand 或 https://relay.你的域名.com';
+  srIn.value=settings.shortRelay||'';
   const srHint=document.createElement('div');srHint.className='set-rd';
-  srHint.textContent='可选。不填也能用，但公共代理在部分网络下会超时；自建 20 行 Cloudflare Worker 可稳定到 1 秒内。';
+  srHint.textContent=(settings.shortRelay
+    ? '当前：先走你填的中继，失败后并行尝试公共代理（apizero + jina/allorigins/codetabs）。'
+    : '留空时：并行尝试公共解析（apizero 匿名 5 次/日 + jina/allorigins/codetabs），谁先成功用谁。');
+  const srKey=document.createElement('input');srKey.type='text';srKey.className='set-in';srKey.id='setShortKey';
+  srKey.placeholder='可选：apizero API Key（免费 20 次/日；不填则匿名 5 次/日）';srKey.value=settings.shortKey||'';
+  const srKeyHint=document.createElement('div');srKeyHint.className='set-rd';
+  srKeyHint.textContent='免费 Key：apizero.cn 用 GitHub 登录 → 控制台 → API Keys，复制填这里；只存在你自己的浏览器中。';
   const srBtns=document.createElement('div');srBtns.className='set-row';
-  const srSave=document.createElement('button');srSave.type='button';srSave.className='set-opt';srSave.textContent='保存中继';
+  const srSave=document.createElement('button');srSave.type='button';srSave.className='set-opt';srSave.textContent='保存设置';
   const srTest=document.createElement('button');srTest.type='button';srTest.className='set-opt';srTest.textContent='测试中继';
   const srOut=document.createElement('span');srOut.className='set-hint';srOut.textContent='';
   srSave.addEventListener('click',()=>{
     const v=srIn.value.trim();
     if(v&&!/^https:\/\//i.test(v)){toast('中继地址必须以 https:// 开头','warn');return;}
-    settings.shortRelay=v;saveSettings();toast(v?'中继已保存':'已清空中继，使用公共代理');
+    settings.shortRelay=v;
+    settings.shortKey=srKey.value.trim();
+    apizeroKeyBad=false;apizeroKeyNotified=false;
+    relayReset('apizero');
+    saveSettings();toast('已保存');
   });
   srTest.addEventListener('click',async()=>{
     const v=srIn.value.trim();
+    if(!v){
+      relayReset('apizero');
+      srOut.textContent='测试 apizero 中…';srTest.disabled=true;
+      const t0=Date.now();
+      try{
+        const k=srKey.value.trim();
+        const res=await fetch('https://v1.apizero.cn/api/unshort?url='+encodeURIComponent('https://b23.tv/0pbfNmH'),{headers:k?{'Authorization':'Bearer '+k}:{}});
+        const j=await res.json();
+        if(j&&j.code===0)srOut.textContent='apizero 成功 · '+(Date.now()-t0)+'ms · '+(j.data.final_url||'').slice(0,60);
+        else srOut.textContent='apizero 失败 · code '+((j&&j.code)||'?')+' · '+((j&&j.msg)||'').slice(0,30);
+      }catch(e){srOut.textContent='apizero 请求失败 · 网络';}
+      finally{srTest.disabled=false;}
+      return;
+    }
     if(!/^https:\/\//i.test(v)){srOut.textContent='先填一个 https 地址';return;}
     srOut.textContent='测试中…';srTest.disabled=true;
     const t0=Date.now();
     try{
-      const u=v+(v.includes('?')?'&':'?')+'url='+encodeURIComponent('https://b23.tv/0pbfNmH');
+      const u=/[?&]url=$/.test(v)?(v+encodeURIComponent('https://b23.tv/0pbfNmH')):(v+(v.includes('?')?'&':'?')+'url='+encodeURIComponent('https://b23.tv/0pbfNmH'));
       const txt=await fetchTextWithTimeout(u,6000);
       let final='';try{const j=JSON.parse(txt);final=(j&&(j.final||j.url))||'';}catch(e){}
       const c=canonicalizeShortResult(final)||'';
@@ -2946,8 +3004,17 @@ function renderSettings(){
       srOut.textContent='失败 · '+(Date.now()-t0)+'ms';
     }finally{srTest.disabled=false;}
   });
+  srKey.addEventListener('change',()=>{
+    settings.shortKey=srKey.value.trim();apizeroKeyBad=false;apizeroKeyNotified=false;
+    relayReset('apizero');
+    saveSettings();toast(settings.shortKey?'Key 已保存':'Key 已清空');
+  });
   srBtns.appendChild(srSave);srBtns.appendChild(srTest);srBtns.appendChild(srOut);
-  srRow.appendChild(srIn);srRow.appendChild(srHint);srSec.appendChild(srRow);srSec.appendChild(srBtns);
+  srRow.appendChild(srIn);srRow.appendChild(srHint);srRow.appendChild(srKey);srRow.appendChild(srKeyHint);
+  srSec.appendChild(srRow);srSec.appendChild(srBtns);
+  seg(sec('短链最长等待时间'),[
+    {value:'6',label:'6 秒'},{value:'8',label:'8 秒'},{value:'12',label:'12 秒'},{value:'20',label:'20 秒'}
+  ],String(settings.shortTimeout||8),v=>{settings.shortTimeout=Number(v);saveSettings();toast('短链最多等待 '+v+' 秒');});
   const tagSec=sec('标签管理（改名 / 合并 / 删除只改标签，不删想法）');
   const counts=tagCounts();
   const tw=document.createElement('div');tw.className='tag-manage';
@@ -3748,9 +3815,22 @@ const SHORT_CACHE_KEY='lingyin.shortcache';
 const SHORT_TTL=30*24*3600*1000;      // 正缓存 30 天
 const SHORT_NEG_TTL=10*60*1000;       // 负缓存 10 分钟
 const SHORT_CAP=200;
-const SHORT_TOTAL_MS=6000;            // 总预算
-const SHORT_TRY_MS=2500;              // 单入口预算
+const SHORT_TOTAL_MS=8000;            // 默认总预算（可在设置里调到 20 秒）
+const SHORT_TRY_MS=3000;              // 单入口预算
+function shortTotalMs(){
+  const n=Number((typeof settings!=='undefined'&&settings&&settings.shortTimeout)||0);
+  return Math.min(30000,Math.max(5000,(n||8)*1000));
+}
+function shortTryMs(){
+  return Math.min(8000,Math.max(3000,Math.round(shortTotalMs()*0.7)));
+}
 const shortRelayDownUntil=Object.create(null);
+let apizeroGate=0;
+let apizeroKeyBad=false;
+let apizeroKeyNotified=false;
+function apizeroKey(){return String((typeof settings!=='undefined'&&settings&&settings.shortKey)||'').trim();}
+// 站点内置的默认中继（Cloudflare Worker）；用户在设置里填写的地址优先
+const DEFAULT_SHORT_RELAY='https://lingyin-relay.3365393147.workers.dev/?url=';
 
 function shortCacheRead(){
   try{
@@ -3799,6 +3879,9 @@ function shortNegSet(url,reason){
   o.neg[url]={ts:Date.now(),reason:reason||'unreachable'};
   shortCacheWrite(o);
 }
+function relayMarkDownBrief(name,ms){
+  shortRelayDownUntil[name]=Date.now()+(ms||8000);
+}
 function relayMarkDown(name){
   shortRelayDownUntil[name]=Date.now()+10*60*1000;
   try{const o=shortCacheRead();o.relay=o.relay||{};o.relay[name]={ok:false,ts:Date.now()};shortCacheWrite(o);}catch(e){}
@@ -3808,6 +3891,10 @@ function relayMarkUp(name,ms){
   try{const o=shortCacheRead();o.relay=o.relay||{};o.relay[name]={ok:true,ts:Date.now(),ms:ms};shortCacheWrite(o);}catch(e){}
 }
 function relayIsDown(name){return (shortRelayDownUntil[name]||0)>Date.now();}
+function relayReset(name){
+  delete shortRelayDownUntil[name];
+  try{const o=shortCacheRead();if(o.relay)delete o.relay[name];shortCacheWrite(o);}catch(e){}
+}
 
 function shortFinalOK(final,src){
   const f=String(final||'').trim();
@@ -3819,7 +3906,8 @@ function shortFinalOK(final,src){
       || /y\.music\.163\.com\/m\/song\?id=\d+/.test(f);
 }
 function canonicalizeShortResult(u){
-  const s=String(u||'');
+  let s=String(u||'');
+  try{if(/%[0-9A-F]{2}/i.test(s))s=decodeURIComponent(s);}catch(e){}
   let m=s.match(/\/video\/(BV[0-9A-Za-z]{10})/); if(m)return 'https://www.bilibili.com/video/'+m[1];
   m=s.match(/\/video\/av(\d+)/i); if(m)return 'https://www.bilibili.com/video/av'+m[1];
   m=s.match(/BV[0-9A-Za-z]{10}/); if(m)return 'https://www.bilibili.com/video/'+m[0];
@@ -3833,6 +3921,7 @@ function canonicalizeShortResult(u){
 }
 function shortRelays(){
   const list=[];
+  list.push({name:'apizero',kind:'apizero',build:u=>'https://v1.apizero.cn/api/unshort?url='+encodeURIComponent(u)});
   const custom=String((typeof settings!=='undefined'&&settings&&settings.shortRelay)||'').trim();
   if(/^https:\/\//i.test(custom)){
     list.push({name:'custom',kind:'json',build:u=>{
@@ -3856,6 +3945,31 @@ async function fetchTextWithTimeout(url,ms,signal){
     return await r.text();
   }finally{clearTimeout(to);if(signal)signal.removeEventListener('abort',onAbort);}
 }
+// apizero 免费档 QPS=1：客户端排队 + 429 自动重试一次
+async function fetchApizero(url,signal){
+  for(let attempt=0;attempt<2;attempt++){
+    const wait=apizeroGate-Date.now();
+    if(wait>0)await new Promise(r=>setTimeout(r,wait));
+    apizeroGate=Date.now()+1200;
+    try{
+      const ctrl=new AbortController();
+      const to=setTimeout(()=>ctrl.abort(),4500);
+      if(signal)signal.addEventListener('abort',()=>ctrl.abort(),{once:true});
+      let r,txt='';
+      try{
+        const hdr={};const k=apizeroKey();if(k)hdr['Authorization']='Bearer '+k;
+        r=await fetch(url,{signal:ctrl.signal,headers:hdr});
+        txt=await r.text();
+      }finally{clearTimeout(to);}
+      if(r.status===429||r.status===503)throw new Error('qps');
+      return txt;
+    }catch(e){
+      if(attempt===0){await new Promise(r=>setTimeout(r,1200));continue;}
+      throw e;
+    }
+  }
+  return '';
+}
 // 展开任意短链：并行竞速，总超时 6 秒；失败返回空字符串（不抛错）
 async function expandShort(raw,opts){
   const src=String(raw||'').trim();
@@ -3872,13 +3986,26 @@ async function expandShort(raw,opts){
   if(alive.length)relays=alive;
   if(!relays.length)return '';
   const ctrl=new AbortController();
-  const total=setTimeout(()=>ctrl.abort(),SHORT_TOTAL_MS);
+  const total=setTimeout(()=>ctrl.abort(),shortTotalMs());
   try{
     const got=await Promise.any(relays.map(async ep=>{
       const t0=Date.now();
-      const txt=await fetchTextWithTimeout(ep.build(src),SHORT_TRY_MS,ctrl.signal);
+      const txt=ep.kind==='apizero'
+        ? await fetchApizero(ep.build(src),ctrl.signal)
+        : await fetchTextWithTimeout(ep.build(src),shortTryMs(),ctrl.signal);
       let final='',html='';
-      if(ep.kind==='json'){
+      if(ep.kind==='apizero'){
+        try{
+          const j=JSON.parse(txt);
+          if(j&&j.code===0&&j.data&&j.data.final_url)final=j.data.final_url;
+          else if(j&&(j.code===4029||j.code===4030)){relayMarkDownBrief(ep.name,j.code===4030?(apizeroKey()?12000:300000):5000);throw new Error('quota');}
+          else if(j&&(j.code===4011||j.code===4013||j.code===4014||j.code===4015)){
+            apizeroKeyBad=true;relayMarkDownBrief(ep.name,600000);
+            if(!apizeroKeyNotified){apizeroKeyNotified=true;toast('apizero Key 无效或已停用，请到设置里重新粘贴','warn');}
+            throw new Error('badkey');
+          }
+        }catch(e){throw e;}
+      }else if(ep.kind==='json'){
         try{const j=JSON.parse(txt);final=j.final||j.url||'';html=j.html||'';}catch(e){}
       }else{
         final=pickFinalURL(txt,family);html=txt;
@@ -3890,6 +4017,7 @@ async function expandShort(raw,opts){
       return canon||final;
     }));
     clearTimeout(total);
+    try{ctrl.abort();}catch(e){}
     const canon=canonicalizeShortResult(got)||got;
     shortCacheSet(src,canon,'race');
     return canon;
@@ -3907,6 +4035,67 @@ async function resolveExpandedLink(raw){
   if(detectNeteaseAlbum(raw))return await resolveNeteaseAlbum(raw);
   if(detectNeteaseSong(raw))return await resolveNeteaseSong(raw);
   return normalizeURL(raw);
+}
+// 一键中继：Cloudflare Worker 模板（复制到 dash.cloudflare.com 即可）
+const RELAY_CODE=[
+"export default {",
+"  async fetch(req) {",
+"    const cors = {",
+"      'Access-Control-Allow-Origin': '*',",
+"      'Access-Control-Allow-Headers': '*',",
+"      'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',",
+"      'Cache-Control': 'no-store'",
+"    };",
+"    if (req.method === 'OPTIONS') return new Response(null, { headers: cors });",
+"    const raw = new URL(req.url).searchParams.get('url') || '';",
+"    const allow = /^https:\\/\\/(b23\\.tv|bili2233\\.cn|163cn\\.tv|y\\.music\\.163\\.com|music\\.163\\.com)\\//;",
+"    if (!allow.test(raw)) return json({ ok: false, error: 'blocked' }, 400, cors);",
+"    const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 ' +",
+"               '(KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.40 NetType/WIFI Language/zh_CN';",
+"    const t0 = Date.now();",
+"    try {",
+"      const r = await fetch(raw, { redirect: 'follow', headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: AbortSignal.timeout(5000) });",
+"      const final = r.url && r.url !== raw ? r.url : raw;",
+"      return json({ ok: final !== raw, final, status: r.status, via: 'worker', ms: Date.now() - t0 }, 200, cors);",
+"    } catch (e) {",
+"      return json({ ok: false, error: String(e).slice(0, 120) }, 502, cors);",
+"    }",
+"  }",
+"};",
+"const json = (o, s, h) => new Response(JSON.stringify(o), { status: s, headers: { ...h, 'Content-Type': 'application/json' } });"
+].join('\n');
+function openRelayHelp(){
+  const box=$('relayHelp');if(!box)return;
+  const code=$('rhCode');if(code&&!code.textContent)code.textContent=RELAY_CODE;
+  box.classList.add('show');document.body.style.overflow='hidden';
+  setTimeout(()=>{const c=$('rhClose');if(c)c.focus();},30);
+}
+function closeRelayHelp(){
+  const box=$('relayHelp');if(!box)return;
+  box.classList.remove('show');document.body.style.overflow='';
+}
+function copyRelayCode(){
+  const txt=RELAY_CODE;
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast('代码已复制，粘贴到 Cloudflare Worker 里即可'),()=>fallbackCopy(txt));
+  else fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  try{
+    const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.left='-9999px';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('代码已复制');
+  }catch(e){toast('复制失败，请手动选择代码','warn');}
+}
+function goRelaySettings(){
+  closeRelayHelp();
+  try{$('btnAccount').click();}catch(e){}
+  setTimeout(()=>{
+    const b=[...document.querySelectorAll('#amBody button')].find(x=>x.textContent.trim()==='基本设置');
+    if(b)b.click();
+    setTimeout(()=>{
+      const inp=document.querySelector('#setShortRelay');
+      if(inp){inp.scrollIntoView({block:'center'});inp.focus();}
+    },160);
+  },80);
 }
 // 保存时短链还没解析完：后台补全并只重绘该卡片
 async function finishShortLink(id){
@@ -5504,6 +5693,12 @@ function buildCard(note){
       const kb=document.createElement('button');kb.type='button';kb.className='sf-btn';kb.textContent='仅收藏短链';
       kb.addEventListener('click',e=>{e.stopPropagation();keepShortOnly(note.id);});
       act.appendChild(rb);act.appendChild(ob);act.appendChild(pb);act.appendChild(kb);
+      if(!(typeof settings!=='undefined'&&settings&&settings.shortRelay)){
+        const tip=document.createElement('button');tip.type='button';tip.className='sf-tip';
+        tip.textContent='公共代理在部分网络不可用 · 配置一次中继即可稳定（2 分钟）';
+        tip.addEventListener('click',e=>{e.stopPropagation();openRelayHelp();});
+        a.appendChild(tip);
+      }
       a.appendChild(act);
     }else{
       a=document.createElement('a');
@@ -5637,7 +5832,9 @@ function renderPending(state,boxId){
     if(state.link.loading){
       const row=document.createElement('div');row.className='pending-bili';
       const lu=state.link.url;
-      const lt=/163cn\.tv/i.test(lu)?'正在展开网易云短链…':/b23\.tv|bili2233/i.test(lu)?'正在展开 B 站短链…':/music\.163\.com/.test(lu)?(/album/.test(lu)?'正在加载网易云专辑…':/playlist/.test(lu)?'正在加载网易云歌单…':'正在加载网易云歌曲…'):'正在解析 B站视频信息…';
+      const maxS=Math.round(shortTotalMs()/1000);
+      const base=/163cn\.tv/i.test(lu)?'正在展开网易云短链…':/b23\.tv|bili2233/i.test(lu)?'正在展开 B 站短链…':/music\.163\.com/.test(lu)?(/album/.test(lu)?'正在加载网易云专辑…':/playlist/.test(lu)?'正在加载网易云歌单…':'正在加载网易云歌曲…'):'正在解析 B站视频信息…';
+      const lt=base+'（最长 '+maxS+' 秒）';
       row.innerHTML='<button class="remove" aria-label="移除">×</button><div class="pb-loading"><span class="spin"></span>'+lt+'</div>';
       row.querySelector('.remove').addEventListener('click',clear);
       box.appendChild(row);
@@ -5791,7 +5988,11 @@ async function applyLinkInput(state,inputId,boxId){
     }else{
       // 展开失败：保留可重试的失败卡片，而不是静默降级
       state.link={kind:'short',family:cls.family,url:cls.url,failedAt:Date.now()};
-      toast('短链展开失败：解析通道暂时不可用，可点卡片重试、在浏览器打开或粘贴完整链接','warn');
+      if(!apizeroKey()){
+        toastAction('短链解析失败：免费额度可能用完了（匿名 5 次/日），填一个免费 Key 可到 20 次/日','去填 Key',()=>openRelayHelp(),9000);
+      }else{
+        toast('短链展开失败：中继没有返回结果，可点卡片重试或粘贴完整链接','warn');
+      }
       renderPending(state,boxId);
       return true;
     }
@@ -7516,6 +7717,14 @@ function initV33(){
   };
   bind('cLink',cState,'cPending');
   bind('mLink',mState,'mPending');
+  const rh=$('relayHelp');
+  if(rh&&!rh.dataset.bound){
+    rh.dataset.bound='1';
+    rh.addEventListener('click',e=>{if(e.target===rh)closeRelayHelp();});
+    const c=$('rhClose');if(c)c.addEventListener('click',closeRelayHelp);
+    const cp=$('rhCopy');if(cp)cp.addEventListener('click',copyRelayCode);
+    const st=$('rhSet');if(st)st.addEventListener('click',goRelaySettings);
+  }
 }
 function initV31(){
   const sp=$('sidePlayer');if(!sp||sp.dataset.bound)return;sp.dataset.bound='1';
