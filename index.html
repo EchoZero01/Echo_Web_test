@@ -2986,7 +2986,11 @@ function renderSettings(){
         const res=await fetch('https://v1.apizero.cn/api/unshort?url='+encodeURIComponent('https://b23.tv/0pbfNmH'),{headers:k?{'Authorization':'Bearer '+k}:{}});
         const j=await res.json();
         if(j&&j.code===0)srOut.textContent='apizero 成功 · '+(Date.now()-t0)+'ms · '+(j.data.final_url||'').slice(0,60);
-        else srOut.textContent='apizero 失败 · code '+((j&&j.code)||'?')+' · '+((j&&j.msg)||'').slice(0,30);
+        else{
+          const code=(j&&j.code)||'?';
+          const extra=code===4031?' → 打开 apizero.cn/marketplace/unshort 点「免费开通」':(code===4011?' → Key 无效或复制不全':(code===4030?' → 今日额度用完':''));
+          srOut.textContent='apizero 失败 · code '+code+' · '+((j&&j.msg)||'').slice(0,28)+extra;
+        }
       }catch(e){srOut.textContent='apizero 请求失败 · 网络';}
       finally{srTest.disabled=false;}
       return;
@@ -3932,6 +3936,7 @@ function shortRelays(){
   list.push({name:'jina',kind:'text',build:u=>'https://r.jina.ai/'+u});
   list.push({name:'allorigins',kind:'text',build:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)});
   list.push({name:'codetabs',kind:'text',build:u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u)});
+  list.push({name:'microlink',kind:'microlink',build:u=>'https://api.microlink.io/?url='+encodeURIComponent(u)});
   return list;
 }
 async function fetchTextWithTimeout(url,ms,signal){
@@ -3999,12 +4004,23 @@ async function expandShort(raw,opts){
           const j=JSON.parse(txt);
           if(j&&j.code===0&&j.data&&j.data.final_url)final=j.data.final_url;
           else if(j&&(j.code===4029||j.code===4030)){relayMarkDownBrief(ep.name,j.code===4030?(apizeroKey()?12000:300000):5000);throw new Error('quota');}
+          else if(j&&j.code===4031){
+            relayMarkDownBrief(ep.name,300000);
+            if(!window.__api4031){window.__api4031=true;toast('apizero：还没开通「短链还原」接口，打开 apizero.cn/marketplace/unshort 免费开通后再试','warn');}
+            throw new Error('not-open');
+          }
           else if(j&&(j.code===4011||j.code===4013||j.code===4014||j.code===4015)){
             apizeroKeyBad=true;relayMarkDownBrief(ep.name,600000);
             if(!apizeroKeyNotified){apizeroKeyNotified=true;toast('apizero Key 无效或已停用，请到设置里重新粘贴','warn');}
             throw new Error('badkey');
           }
         }catch(e){throw e;}
+      }else if(ep.kind==='microlink'){
+        try{
+          const j=JSON.parse(txt);
+          const u=j&&j.data&&j.data.url;
+          if(u&&/music\.163\.com|bilibili\.com/i.test(u))final=u;
+        }catch(e){}
       }else if(ep.kind==='json'){
         try{const j=JSON.parse(txt);final=j.final||j.url||'';html=j.html||'';}catch(e){}
       }else{
