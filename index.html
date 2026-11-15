@@ -1726,7 +1726,7 @@ body.coarse .em-wrap .em-x{opacity:1;width:20px;height:20px;line-height:20px;fon
   .c-title,.c-body,.c-link,.c-tags,#mBody{font-size:16px}
   .composer-foot{flex-direction:column;align-items:stretch;gap:9px;padding:10px 0 0}
   .attach-bar{flex-wrap:nowrap;overflow-x:auto;gap:7px;padding-bottom:2px;scrollbar-width:none;
-    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 20px),transparent)}
+    -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
   .attach-bar::-webkit-scrollbar{display:none}
   .attach-bar .attach-btn,.attach-bar .quota-text{flex:none}
   .attach-btn{height:var(--touch);min-width:var(--touch)}
@@ -3937,6 +3937,7 @@ function shortRelays(){
   list.push({name:'allorigins',kind:'text',build:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)});
   list.push({name:'codetabs',kind:'text',build:u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u)});
   list.push({name:'microlink',kind:'microlink',build:u=>'https://api.microlink.io/?url='+encodeURIComponent(u)});
+  list.push({name:'unshorten',kind:'json',build:u=>'https://unshorten.me/json/'+encodeURIComponent(u)});
   return list;
 }
 async function fetchTextWithTimeout(url,ms,signal){
@@ -4022,7 +4023,7 @@ async function expandShort(raw,opts){
           if(u&&/music\.163\.com|bilibili\.com/i.test(u))final=u;
         }catch(e){}
       }else if(ep.kind==='json'){
-        try{const j=JSON.parse(txt);final=j.final||j.url||'';html=j.html||'';}catch(e){}
+        try{const j=JSON.parse(txt);final=j.resolved_url||j.final||j.url||'';html=j.html||'';}catch(e){}
       }else{
         final=pickFinalURL(txt,family);html=txt;
       }
